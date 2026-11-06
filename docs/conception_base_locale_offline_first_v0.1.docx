@@ -1,0 +1,151 @@
+Conception de la base de données locale
+
+ERP scolaire — Architecture Offline-First
+
+Document de cadrage technique — Version de travail V0.1
+
+Statut : orientation technique à approfondir. Ce document ne constitue pas encore le schéma SQLite définitif. La structure détaillée des tables devra être dérivée du MLD global validé.
+
+1. Objectif et périmètre
+
+La base locale doit permettre à l’ERP scolaire de fonctionner sans connexion Internet, de conserver durablement les opérations réalisées sur l’appareil, puis de préparer leur synchronisation avec le serveur PostgreSQL. Elle constitue un stockage opérationnel local et non un simple cache d’interface.
+
+La conception doit préserver les règles métier, les historiques financiers et pédagogiques, ainsi que les invariants de synchronisation déjà validés.
+
+2. Stack technique envisagée
+
+Frontend : React + TypeScript + Vite.
+
+Application : PWA.
+
+Base locale envisagée : SQLite compilé en WebAssembly, avec persistance OPFS.
+
+Accès à SQLite : Web Worker dédié, afin d’isoler les opérations de base de données du thread d’interface.
+
+Base serveur prévue : PostgreSQL (Supabase envisagé dans la stack).
+
+Décision à confirmer : SQLite WASM + OPFS reste l’option de référence pour la conception, mais sa compatibilité doit être vérifiée sur les navigateurs cibles, notamment les contraintes OPFS, SharedArrayBuffer/isolation cross-origin lorsque requis, quotas et comportement PWA.
+
+3. Principes d’architecture locale
+
+Séparer les données métier des données techniques de synchronisation.
+
+Centraliser l’accès SQLite dans un Worker et exposer une API de commandes/requêtes typées.
+
+Exécuter chaque opération métier multi-écriture dans une transaction SQLite atomique.
+
+Générer les identifiants locaux de manière autonome, avec des UUID stables.
+
+Ne pas dépendre d’un appel serveur pour créer une donnée métier autorisée hors ligne.
+
+Ne pas considérer OPFS comme une sauvegarde ou une protection de sécurité suffisante.
+
+Prévoir une stratégie explicite de migration, sauvegarde, restauration et récupération après incident.
+
+4. Organisation logique des données
+
+La base locale comportera des données métier nécessaires au périmètre fonctionnel disponible sur l’installation, ainsi que les données techniques indispensables à l’exploitation hors ligne. La liste exacte des tables et leurs colonnes ne doit être arrêtée qu’après consolidation du MLD.
+
+4.1 Données métier
+
+Les tables métier seront dérivées du MLD : organisation scolaire, élèves et responsables, inscriptions, finances, caisse, crédits et remboursements, relances, pédagogie. La présence d’une table dans la base locale dépendra du périmètre fonctionnel et des besoins hors ligne de l’installation ; elle ne doit pas être décidée par simple copie automatique du serveur.
+
+4.2 Données techniques locales
+
+Les données techniques couvriront notamment l’installation locale, l’appareil, la version du schéma, les opérations et événements de synchronisation, les dépendances, les curseurs, les conflits, les décisions d’arbitrage, les sauvegardes et les restaurations. Elles doivent respecter le modèle de synchronisation VAL-014, sans créer un mécanisme concurrent.
+
+5. Transactions et journalisation
+
+Une mutation métier qui doit être synchronisée doit être enregistrée de façon atomique : la modification métier et les éléments de journalisation/synchronisation correspondants ne doivent pas pouvoir être validés séparément. Si l’une des écritures échoue, l’ensemble de l’opération doit être annulé.
+
+Le format précis de l’événement, son identité, sa séquence, ses dépendances, son enveloppe et son cycle de vie doivent reprendre les concepts et invariants VAL-014. Ne pas ajouter une table générique d’outbox en doublon si elle recouvre un concept déjà défini dans ce modèle.
+
+6. Identifiants, provenance et champs communs
+
+Les UUID stables sont adaptés à la création hors ligne. En revanche, il ne faut pas imposer uniformément à toutes les tables des champs tels que created_at, updated_at, deleted_at, created_by, source_system ou source_event_id. Chaque attribut doit être justifié par le modèle métier, les besoins d’audit ou les invariants de synchronisation.
+
+Les suppressions physiques, suppressions logiques et corrections doivent être définies par catégorie de données. Les faits financiers, clôtures, événements de synchronisation et résultats pédagogiques publiés ne doivent pas être effacés ou réécrits silencieusement.
+
+7. Intégrité et concurrence
+
+Activer et vérifier explicitement les clés étrangères SQLite sur chaque connexion.
+
+Définir les contraintes UNIQUE, CHECK et NOT NULL à partir du MLD et des règles métier validées.
+
+Prévoir un modèle d’écriture contrôlée, avec un écrivain principal par base locale et des lectures coordonnées.
+
+Gérer explicitement les accès concurrents entre onglets ou fenêtres du même navigateur.
+
+Ne pas supposer que WAL résout à lui seul tous les problèmes de concurrence ou de durabilité avec le VFS OPFS retenu.
+
+Tester les interruptions, erreurs de quota, fermetures brutales et reprises de transactions.
+
+8. Synchronisation et conflits
+
+La synchronisation doit suivre VAL-014 : identité stable des événements, retransmission idempotente, conservation des séquences et provenances, gestion des dépendances, historisation des conflits et des arbitrages, et traçabilité de l’application des décisions.
+
+Les conflits ne doivent pas être résolus par écrasement silencieux ou par une règle générale de type Last-Write-Wins. Les règles de résolution dépendent du domaine métier et des décisions déjà validées. Les opérations rejetées, conflictuelles ou en attente doivent conserver leur historique selon le modèle de synchronisation.
+
+9. Migrations, sauvegardes et restauration
+
+9.1 Migrations
+
+Prévoir un versionnement du schéma local et une suite de migrations ordonnées. Une migration déjà appliquée ne doit pas être modifiée rétroactivement. Toute évolution doit être testée sur des bases représentatives, y compris des bases contenant des opérations non synchronisées.
+
+9.2 Sauvegardes et restauration
+
+Définir un format de sauvegarde cohérent qui préserve les données métier et les éléments nécessaires à la continuité de synchronisation. Vérifier l’intégrité de la sauvegarde avant restauration et tracer l’opération. La restauration doit respecter les règles VAL-014 et ne pas réintroduire silencieusement des événements déjà traités.
+
+10. Sécurité locale
+
+Ne jamais stocker de mot de passe en clair dans la base locale.
+
+Définir les données et permissions accessibles hors ligne selon le profil et le périmètre autorisé.
+
+Prévoir le comportement local en cas de révocation de droits connue lors d’une synchronisation ultérieure.
+
+Protéger les exports et sauvegardes contenant des données personnelles.
+
+Évaluer le chiffrement local selon le modèle de menace, la gestion des clés et les contraintes du navigateur.
+
+Considérer qu’un appareil compromis ou partagé peut exposer les données locales, même si OPFS n’est pas directement visible par l’utilisateur.
+
+11. Décisions et validations à respecter
+
+Le modèle local doit rester conforme aux validations métier existantes. En particulier :
+
+VAL-013 : modèle des relances financières.
+
+VAL-014 : modèle et invariants de synchronisation.
+
+VAL-015 : modèle pédagogique, sous-types de RESULTAT_SCOLAIRE, contributions, historisation et immuabilité des résultats publiés.
+
+VAL-016 : MCD global V1.0 et ses réserves documentaires.
+
+Lot 6 : modèle V1.0 gelé ; respecter les arbitrages validés sur la consommation des crédits, les réservations hors ligne, les rôles demandeur/payeur/bénéficiaire et les remboursements.
+
+Lots financiers 1 à 5 : conserver les réserves documentaires. Ne pas inventer les structures qui ne sont pas suffisamment documentées.
+
+12. Points à confirmer avant le schéma SQLite définitif
+
+Consolidation du MLD global et disponibilité des PK, FK, cardinalités et contraintes.
+
+Navigateurs et systèmes officiellement supportés par la PWA.
+
+VFS SQLite WASM/OPFS retenu, contraintes de déploiement et exigences d’isolation du navigateur.
+
+Modèle d’accès multi-onglets et politique de verrouillage.
+
+Périmètre de données disponible sur chaque installation locale.
+
+Politique de conservation locale, durée hors ligne maximale et gestion des appareils perdus ou partagés.
+
+Format, fréquence et destination des sauvegardes.
+
+Politique de chiffrement et de gestion des clés.
+
+13. Étape suivante
+
+Après consolidation du MLD, produire le schéma local détaillé domaine par domaine : tables, colonnes, types SQLite, PK, FK, contraintes, index et règles de conservation. Chaque élément devra être traçable vers le MLD ou vers une décision technique explicitement approuvée. Aucun SQL d’implémentation ni code applicatif ne doit être produit avant validation de cette conception.
+
+ERP scolaire — Conception de la base locale Offline-First — V0.1

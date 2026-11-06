@@ -1,0 +1,70 @@
+import type { SQLiteExecutor } from "../../database/local/sqlite.types";
+import { traduireErreurSQLite } from "./errors";
+import { exigerLigne, selectionner } from "./shared";
+import type { PeriodePedagogique } from "./types";
+
+export function creerServicePeriodesPedagogiques(database: SQLiteExecutor) {
+  return {
+    async listerParAnnee(
+      idAnneeScolaire: string,
+    ): Promise<PeriodePedagogique[]> {
+      return selectionner(
+        database,
+        `SELECT id_periode, id_annee_scolaire
+         FROM periode_pedagogique
+         WHERE id_annee_scolaire = ?
+         ORDER BY id_periode;`,
+        [idAnneeScolaire],
+      );
+    },
+
+    async obtenir(id: string): Promise<PeriodePedagogique> {
+      const rows = await selectionner<PeriodePedagogique>(
+        database,
+        `SELECT id_periode, id_annee_scolaire
+         FROM periode_pedagogique
+         WHERE id_periode = ?;`,
+        [id],
+      );
+      return exigerLigne(rows, "La période pédagogique", id);
+    },
+
+    async creer(periode: PeriodePedagogique): Promise<PeriodePedagogique> {
+      const rows = await traduireErreurSQLite("La période pédagogique", () =>
+        database.query(
+          `INSERT INTO periode_pedagogique (id_periode, id_annee_scolaire)
+           VALUES (?, ?)
+           RETURNING id_periode, id_annee_scolaire;`,
+          [periode.id_periode, periode.id_annee_scolaire],
+        ),
+      );
+      return exigerLigne(rows, "La période pédagogique", periode.id_periode);
+    },
+
+    async modifier(
+      id: string,
+      changements: PeriodePedagogique,
+    ): Promise<PeriodePedagogique> {
+      const rows = await traduireErreurSQLite("La période pédagogique", () =>
+        database.query(
+          `UPDATE periode_pedagogique
+           SET id_periode = ?, id_annee_scolaire = ?
+           WHERE id_periode = ?
+           RETURNING id_periode, id_annee_scolaire;`,
+          [changements.id_periode, changements.id_annee_scolaire, id],
+        ),
+      );
+      return exigerLigne(rows, "La période pédagogique", id);
+    },
+
+    async supprimer(id: string): Promise<void> {
+      const rows = await traduireErreurSQLite("La période pédagogique", () =>
+        database.query(
+          "DELETE FROM periode_pedagogique WHERE id_periode = ? RETURNING id_periode;",
+          [id],
+        ),
+      );
+      exigerLigne(rows, "La période pédagogique", id);
+    },
+  };
+}
