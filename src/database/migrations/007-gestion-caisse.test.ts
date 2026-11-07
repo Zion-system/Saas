@@ -98,10 +98,10 @@ describe("migration gestion_caisse", () => {
     });
 
     expect(versions.map((row) => row.version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
     ]);
     expect(migrations.map((migration) => migration.version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
     ]);
     expect(
       database.exec({
@@ -248,11 +248,15 @@ describe("migration gestion_caisse", () => {
     database.exec({
       sql: `
         INSERT INTO transaction_mobile_money (
-          id_transaction_mobile_money, reference_externe,
-          etat_synchronisation_technique, etat_verification_financiere
-        ) VALUES (?, ?, ?, ?);
+          id_transaction_mobile_money, fournisseur, compte_marchand,
+          reference_externe, montant_declare_fcfa, date_declaration,
+          etat_synchronisation_technique, etat_financier
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
       `,
-      bind: ["mobile-1", "reference-1", "LOCALE_NON_SYNCHRONISEE", "DECLARE"],
+      bind: [
+        "mobile-1", "MTN_MOMO", "compte-1", "reference-1", 3000,
+        "2026-11-04T09:00:00+01:00", "CREE_LOCALEMENT", "INITIE",
+      ],
     });
     database.exec({
       sql: `

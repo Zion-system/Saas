@@ -87,10 +87,10 @@ describe("intégrité globale du schéma SQLite V1", () => {
     });
 
     expect(versions.map((row) => row.version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
     ]);
     expect(migrations.map((migration) => migration.version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
     ]);
     expect(objectCounts).toContainEqual({ type: "table", count: 75 });
     expect(objectCounts).toContainEqual({ type: "view", count: 1 });
@@ -163,8 +163,9 @@ describe("intégrité globale du schéma SQLite V1", () => {
       ) VALUES ('echeance-1', 'creance-1', 'plan-1', 12000, '2026-10-01', 1, 'CODE_SOURCE');
       INSERT INTO encaissement VALUES ('encaissement-1', 12000);
       INSERT INTO affectation_reglement (
-        id_affectation_reglement, id_encaissement, montant_affecte_fcfa
-      ) VALUES ('affectation-1', 'encaissement-1', 12000);
+        id_affectation_reglement, id_encaissement, id_creance,
+        montant_affecte_fcfa, date_affectation
+      ) VALUES ('affectation-1', 'encaissement-1', 'creance-1', 12000, '2026-11-04T10:00:00+01:00');
       INSERT INTO relance_financiere VALUES ('relance-1', 'eleve-1');
       INSERT INTO ligne_relance_financiere (
         id_ligne_relance, id_relance, id_echeance_creance, montant_reference_fcfa

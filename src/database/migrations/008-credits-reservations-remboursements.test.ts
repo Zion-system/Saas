@@ -87,21 +87,11 @@ function insererArbitrage(
   });
 }
 
-function insererAffectationEtUtilisation(
-  affectation: string,
-  mouvement: string,
+function insererMouvementCreditUtilisation(
+  id: string,
   montant: number,
+  affectation: string,
 ): void {
-  database.exec("BEGIN IMMEDIATE;");
-  database.exec({
-    sql: `
-      INSERT INTO affectation_reglement (
-        id_affectation_reglement, id_mouvement_credit_utilisation,
-        montant_affecte_fcfa
-      ) VALUES (?, ?, ?);
-    `,
-    bind: [affectation, mouvement, montant],
-  });
   database.exec({
     sql: `
       INSERT INTO mouvement_credit (
@@ -109,7 +99,25 @@ function insererAffectationEtUtilisation(
         nature_mouvement, id_affectation_reglement
       ) VALUES (?, ?, 'UTILISATION', ?);
     `,
-    bind: [mouvement, montant, affectation],
+    bind: [id, montant, affectation],
+  });
+}
+
+function insererAffectationEtUtilisation(
+  affectation: string,
+  mouvement: string,
+  montant: number,
+): void {
+  database.exec("BEGIN IMMEDIATE;");
+  insererMouvementCreditUtilisation(mouvement, montant, affectation);
+  database.exec({
+    sql: `
+      INSERT INTO affectation_reglement (
+        id_affectation_reglement, id_mouvement_credit_utilisation,
+        id_creance, montant_affecte_fcfa, date_affectation
+      ) VALUES (?, ?, 'creance-1', ?, ?);
+    `,
+    bind: [affectation, mouvement, montant, "2026-11-04T10:00:00+01:00"],
   });
   database.exec("COMMIT;");
 }
@@ -149,6 +157,24 @@ describe("migration credits_reservations_remboursements", () => {
     for (const migration of migrations) {
       appliquerMigration(migration);
     }
+
+    database.exec(`
+      INSERT INTO etablissement VALUES ('etablissement-1');
+      INSERT INTO annee_scolaire (id_annee_scolaire, id_etablissement)
+        VALUES ('annee-1', 'etablissement-1');
+      INSERT INTO type_frais (id_type_frais, code_type_frais, libelle)
+        VALUES ('type-1', 'SCOLARITE', 'Scolarité');
+      INSERT INTO creance (
+        id_creance, id_eleve, id_annee_scolaire, id_type_frais,
+        libelle_type_frais_snapshot, origine_creation, auteur_creation,
+        date_creation, motif_creation, montant_brut_fcfa,
+        montant_remise_fcfa, montant_net_initial_fcfa
+      ) VALUES (
+        'creance-1', 'eleve-externe', 'annee-1', 'type-1',
+        'Scolarité', 'MANUELLE', 'utilisateur-externe',
+        '2026-01-01T10:00:00Z', 'Création manuelle', 10000, 0, 10000
+      );
+    `);
   });
 
   afterEach(() => {
@@ -163,10 +189,10 @@ describe("migration credits_reservations_remboursements", () => {
     });
 
     expect(versions.map((row) => row.version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
     ]);
     expect(migrations.map((migration) => migration.version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
     ]);
     expect(
       database.exec({
@@ -375,21 +401,6 @@ describe("migration credits_reservations_remboursements", () => {
 
   it("conserve une échéance réglée séparément d’un crédit source ultérieur", () => {
     database.exec(`
-      INSERT INTO etablissement VALUES ('etablissement-1');
-      INSERT INTO annee_scolaire (id_annee_scolaire, id_etablissement)
-        VALUES ('annee-1', 'etablissement-1');
-      INSERT INTO type_frais (id_type_frais, code_type_frais, libelle)
-        VALUES ('type-1', 'SCOLARITE', 'Scolarité');
-      INSERT INTO creance (
-        id_creance, id_eleve, id_annee_scolaire, id_type_frais,
-        libelle_type_frais_snapshot, origine_creation, auteur_creation,
-        date_creation, motif_creation, montant_brut_fcfa,
-        montant_remise_fcfa, montant_net_initial_fcfa
-      ) VALUES (
-        'creance-1', 'eleve-externe', 'annee-1', 'type-1',
-        'Scolarité', 'MANUELLE', 'utilisateur-externe',
-        '2026-01-01T10:00:00Z', 'Création manuelle', 1000, 0, 1000
-      );
       INSERT INTO plan_reglement_creance (
         id_plan_reglement_creance, id_creance, montant_total_planifie_fcfa,
         type_plan

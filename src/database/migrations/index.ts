@@ -18,6 +18,7 @@ import elevesResponsables from "./011-eleves-responsables";
 import candidaturesPreinscriptions from "./012-candidatures-preinscriptions";
 import inscriptionsAffectations from "./013-inscriptions-affectations";
 import correction005EcheanciersReglements from "./014-correction-005-echeanciers-reglements";
+import correction006EncaissementsCredits from "./015-correction-006-encaissements-credits";
 
 /**
  * Registre chronologique des migrations SQLite.
@@ -42,4 +43,5 @@ export const migrations: Migration[] = [
   candidaturesPreinscriptions,
   inscriptionsAffectations,
   correction005EcheanciersReglements,
+  correction006EncaissementsCredits,
 ];

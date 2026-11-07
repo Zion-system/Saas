@@ -29,20 +29,32 @@ function appliquerMigration(migration: (typeof migrations)[number]): void {
   }
 }
 
-function insererAffectation(
-  id: string,
-  encaissement: string | null,
-  mouvementCredit: string | null,
-  montant: number,
-): void {
+function insererAffectation(options: {
+  id: string;
+  encaissement?: string | null;
+  mouvementCredit?: string | null;
+  creance?: string | null;
+  echeance?: string | null;
+  montant: number;
+  date?: string;
+}): void {
   database.exec({
     sql: `
       INSERT INTO affectation_reglement (
         id_affectation_reglement, id_encaissement,
-        id_mouvement_credit_utilisation, montant_affecte_fcfa
-      ) VALUES (?, ?, ?, ?);
+        id_mouvement_credit_utilisation, id_creance,
+        id_echeance_creance, montant_affecte_fcfa, date_affectation
+      ) VALUES (?, ?, ?, ?, ?, ?, ?);
     `,
-    bind: [id, encaissement, mouvementCredit, montant],
+    bind: [
+      options.id,
+      options.encaissement ?? null,
+      options.mouvementCredit ?? null,
+      options.creance ?? null,
+      options.echeance ?? null,
+      options.montant,
+      options.date ?? "2026-11-04T10:00:00+01:00",
+    ],
   });
 }
 
@@ -60,6 +72,42 @@ function insererMouvementCredit(
       ) VALUES (?, ?, ?, ?);
     `,
     bind: [id, montant, nature, affectation],
+  });
+}
+
+function insererTransactionMobileMoney(options: {
+  id: string;
+  reference: string;
+  etatSync?: string;
+  etatFinancier?: string;
+  encaissement?: string | null;
+  dateConfirmation?: string | null;
+  fournisseur?: string;
+  compteMarchand?: string;
+  montant?: number;
+}): void {
+  database.exec({
+    sql: `
+      INSERT INTO transaction_mobile_money (
+        id_transaction_mobile_money, id_encaissement, fournisseur,
+        compte_marchand, reference_externe, montant_declare_fcfa,
+        telephone_payeur, date_declaration, date_confirmation,
+        etat_synchronisation_technique, etat_financier
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    `,
+    bind: [
+      options.id,
+      options.encaissement ?? null,
+      options.fournisseur ?? "MTN_MOMO",
+      options.compteMarchand ?? "compte-1",
+      options.reference,
+      options.montant ?? 5000,
+      "+242060000000",
+      "2026-11-04T09:00:00+01:00",
+      options.dateConfirmation ?? null,
+      options.etatSync ?? "CREE_LOCALEMENT",
+      options.etatFinancier ?? "INITIE",
+    ],
   });
 }
 
@@ -88,13 +136,51 @@ describe("migration encaissements_credits_mobile_money", () => {
     for (const migration of migrations) {
       appliquerMigration(migration);
     }
+
+    database.exec(`
+      INSERT INTO etablissement VALUES ('etablissement-1');
+      INSERT INTO annee_scolaire (id_annee_scolaire, id_etablissement)
+        VALUES ('annee-1', 'etablissement-1');
+      INSERT INTO type_frais (id_type_frais, code_type_frais, libelle)
+        VALUES ('type-1', 'SCOLARITE', 'Scolarité');
+      INSERT INTO creance (
+        id_creance, id_eleve, id_annee_scolaire, id_type_frais,
+        libelle_type_frais_snapshot, origine_creation, auteur_creation,
+        date_creation, motif_creation, montant_brut_fcfa,
+        montant_remise_fcfa, montant_net_initial_fcfa
+      ) VALUES (
+        'creance-1', 'eleve-externe', 'annee-1', 'type-1',
+        'Scolarité', 'MANUELLE', 'utilisateur-externe',
+        '2026-01-01T10:00:00+01:00', 'Création manuelle',
+        10000, 0, 10000
+      );
+      INSERT INTO creance (
+        id_creance, id_eleve, id_annee_scolaire, id_type_frais,
+        libelle_type_frais_snapshot, origine_creation, auteur_creation,
+        date_creation, motif_creation, montant_brut_fcfa,
+        montant_remise_fcfa, montant_net_initial_fcfa
+      ) VALUES (
+        'creance-2', 'eleve-externe', 'annee-1', 'type-1',
+        'Scolarité', 'MANUELLE', 'utilisateur-externe',
+        '2026-01-01T10:00:00+01:00', 'Création manuelle',
+        8000, 0, 8000
+      );
+      INSERT INTO plan_reglement_creance (
+        id_plan_reglement_creance, id_creance,
+        montant_total_planifie_fcfa, type_plan, etat_plan
+      ) VALUES ('plan-1', 'creance-1', 10000, 'INITIAL', 'BROUILLON');
+      INSERT INTO echeance_creance (
+        id_echeance_creance, id_creance, id_plan_reglement_creance,
+        montant_exigible_fcfa, date_exigibilite, rang, etat_administratif
+      ) VALUES ('echeance-1', 'creance-1', 'plan-1', 10000, '2026-10-01', 1, 'ADMIN');
+    `);
   });
 
   afterEach(() => {
     database.close();
   });
 
-  it("applique successivement les migrations 001 à 012 avec les FK actives", () => {
+  it("applique successivement les migrations 001 à 015 avec les FK actives", () => {
     const versions = database.exec({
       sql: "SELECT version FROM schema_migrations ORDER BY version;",
       rowMode: "object",
@@ -102,10 +188,10 @@ describe("migration encaissements_credits_mobile_money", () => {
     });
 
     expect(versions.map((row) => row.version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
     ]);
     expect(migrations.map((migration) => migration.version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
     ]);
     expect(
       database.exec({
@@ -116,7 +202,7 @@ describe("migration encaissements_credits_mobile_money", () => {
     ).toBe(1);
   });
 
-  it("n’enregistre un encaissement que comme montant reçu, entier et positif", () => {
+  it("n’enregistre un encaissement que comme montant reçu, entier et positif, jamais supprimé", () => {
     database.exec({
       sql: "INSERT INTO encaissement VALUES (?, ?);",
       bind: ["encaissement-1", 12500],
@@ -134,43 +220,155 @@ describe("migration encaissements_credits_mobile_money", () => {
         bind: ["encaissement-decimal", 12.5],
       }),
     ).toThrow();
+    expect(() =>
+      database.exec("DELETE FROM encaissement WHERE id_encaissement = 'encaissement-1';"),
+    ).toThrow();
+    expect(
+      lireCompte("SELECT COUNT(*) AS count FROM encaissement;"),
+    ).toBe(1);
   });
 
-  it("rattache une affectation à un encaissement réel sans imposer de cible non documentée", () => {
+  it("exige le XOR strict d’origine et de cible, un montant positif et une date (Q-09, Arbitrages 1 et 3)", () => {
     database.exec({
       sql: "INSERT INTO encaissement VALUES (?, ?);",
       bind: ["encaissement-1", 12500],
     });
-    insererAffectation("affectation-1", "encaissement-1", null, 8000);
-    insererAffectation("affectation-2", "encaissement-1", null, 4500);
+    insererAffectation({
+      id: "affectation-1",
+      encaissement: "encaissement-1",
+      creance: "creance-1",
+      montant: 8000,
+    });
+    insererAffectation({
+      id: "affectation-2",
+      encaissement: "encaissement-1",
+      echeance: "echeance-1",
+      montant: 4500,
+    });
 
     expect(() =>
-      insererAffectation("affectation-sans-source", null, null, 1000),
+      insererAffectation({ id: "affectation-sans-source", creance: "creance-1", montant: 1000 }),
     ).toThrow();
     expect(() =>
-      insererAffectation(
-        "affectation-encaissement-absent",
-        "absent",
-        null,
-        1000,
+      insererAffectation({
+        id: "affectation-double-source",
+        encaissement: "encaissement-1",
+        mouvementCredit: "mouvement-credit-x",
+        creance: "creance-1",
+        montant: 1000,
+      }),
+    ).toThrow();
+    expect(() =>
+      insererAffectation({
+        id: "affectation-sans-cible",
+        encaissement: "encaissement-1",
+        montant: 1000,
+      }),
+    ).toThrow();
+    expect(() =>
+      insererAffectation({
+        id: "affectation-double-cible",
+        encaissement: "encaissement-1",
+        creance: "creance-1",
+        echeance: "echeance-1",
+        montant: 1000,
+      }),
+    ).toThrow();
+    expect(() =>
+      insererAffectation({
+        id: "affectation-montant-zero",
+        encaissement: "encaissement-1",
+        creance: "creance-1",
+        montant: 0,
+      }),
+    ).toThrow();
+    expect(() =>
+      insererAffectation({
+        id: "affectation-montant-decimal",
+        encaissement: "encaissement-1",
+        creance: "creance-1",
+        montant: 10.5,
+      }),
+    ).toThrow();
+    expect(() =>
+      insererAffectation({
+        id: "affectation-creance-absente",
+        encaissement: "encaissement-1",
+        creance: "absente",
+        montant: 1000,
+      }),
+    ).toThrow();
+    expect(() =>
+      insererAffectation({
+        id: "affectation-echeance-absente",
+        encaissement: "encaissement-1",
+        echeance: "absente",
+        montant: 1000,
+      }),
+    ).toThrow();
+
+    expect(
+      lireCompte("SELECT COUNT(*) AS count FROM affectation_reglement;"),
+    ).toBe(2);
+    const indexNames = database.exec({
+      sql: `
+        SELECT name FROM sqlite_master
+        WHERE type = 'index' AND name IN (
+          'idx_affectation_creance', 'idx_affectation_echeance',
+          'idx_affectation_encaissement'
+        ) ORDER BY name;
+      `,
+      rowMode: "object",
+      returnValue: "resultRows",
+    });
+    expect(indexNames.map((row) => row.name)).toEqual([
+      "idx_affectation_creance",
+      "idx_affectation_echeance",
+      "idx_affectation_encaissement",
+    ]);
+  });
+
+  it("conserve les affectations en append-only (Arbitrage 5)", () => {
+    database.exec({
+      sql: "INSERT INTO encaissement VALUES (?, ?);",
+      bind: ["encaissement-1", 12500],
+    });
+    insererAffectation({
+      id: "affectation-1",
+      encaissement: "encaissement-1",
+      creance: "creance-1",
+      montant: 8000,
+    });
+
+    expect(() =>
+      database.exec(
+        "UPDATE affectation_reglement SET montant_affecte_fcfa = 9000 WHERE id_affectation_reglement = 'affectation-1';",
       ),
     ).toThrow();
+    expect(() =>
+      database.exec(
+        "DELETE FROM affectation_reglement WHERE id_affectation_reglement = 'affectation-1';",
+      ),
+    ).toThrow();
+    expect(
+      lireCompte("SELECT COUNT(*) AS count FROM affectation_reglement;"),
+    ).toBe(1);
   });
 
   it("exige la création atomique et 1:1 du mouvement UTILISATION et de l’affectation", () => {
     database.exec("BEGIN IMMEDIATE;");
-    insererAffectation(
-      "affectation-credit-1",
-      null,
-      "mouvement-credit-1",
-      3000,
-    );
     insererMouvementCredit(
       "mouvement-credit-1",
       3000,
       "UTILISATION",
       "affectation-credit-1",
     );
+    insererAffectation({
+      id: "affectation-credit-1",
+      mouvementCredit: "mouvement-credit-1",
+      creance: "creance-1",
+      montant: 3000,
+    });
     database.exec("COMMIT;");
 
     expect(lireCompte("SELECT COUNT(*) AS count FROM encaissement;")).toBe(0);
@@ -191,12 +389,12 @@ describe("migration encaissements_credits_mobile_money", () => {
 
     expect(() => {
       database.exec("BEGIN IMMEDIATE;");
-      insererAffectation(
-        "affectation-credit-incomplete",
-        null,
-        "mouvement-credit-absent",
-        500,
-      );
+      insererAffectation({
+        id: "affectation-credit-incomplete",
+        mouvementCredit: "mouvement-credit-absent",
+        creance: "creance-1",
+        montant: 500,
+      });
       database.exec("COMMIT;");
     }).toThrow();
     database.exec("ROLLBACK;");
@@ -225,46 +423,81 @@ describe("migration encaissements_credits_mobile_money", () => {
     ).toThrow();
   });
 
-  it("sépare les états Mobile Money et ne crée pas d’encaissement lors d’une déclaration hors ligne", () => {
+  it("sépare les états Mobile Money et n’active l’encaissement qu’à la confirmation (Q-04)", () => {
     database.exec({
-      sql: `
-        INSERT INTO transaction_mobile_money (
-          id_transaction_mobile_money, reference_externe,
-          etat_synchronisation_technique, etat_verification_financiere
-        ) VALUES (?, ?, ?, ?);
-      `,
-      bind: [
-        "transaction-locale",
-        "ref-locale",
-        "LOCALE_NON_SYNCHRONISEE",
-        "DECLARE",
-      ],
+      sql: "INSERT INTO encaissement VALUES (?, ?);",
+      bind: ["encaissement-confirme", 5000],
     });
-    database.exec({
-      sql: `
-        INSERT INTO transaction_mobile_money (
-          id_transaction_mobile_money, reference_externe,
-          etat_synchronisation_technique, etat_verification_financiere
-        ) VALUES (?, ?, ?, ?);
-      `,
-      bind: [
-        "transaction-synchronisee-non-verifiee",
-        "ref-synchronisee",
-        "SYNCHRONISEE",
-        "EN_ATTENTE_VERIFICATION",
-      ],
+    insererTransactionMobileMoney({
+      id: "transaction-locale",
+      reference: "ref-locale",
+      etatSync: "CREE_LOCALEMENT",
+      etatFinancier: "INITIE",
+    });
+    insererTransactionMobileMoney({
+      id: "transaction-en-attente",
+      reference: "ref-attente",
+      etatSync: "EN_ATTENTE_SERVEUR",
+      etatFinancier: "INITIE",
+    });
+    insererTransactionMobileMoney({
+      id: "transaction-confirmee",
+      reference: "ref-confirmee",
+      etatSync: "CONFIRME_SERVEUR",
+      etatFinancier: "CONFIRME",
+      encaissement: "encaissement-confirme",
+      dateConfirmation: "2026-11-04T10:30:00+01:00",
     });
 
-    expect(lireCompte("SELECT COUNT(*) AS count FROM encaissement;")).toBe(0);
+    expect(lireCompte("SELECT COUNT(*) AS count FROM encaissement;")).toBe(1);
     expect(() =>
-      database.exec({
-        sql: `
-          INSERT INTO transaction_mobile_money (
-            id_transaction_mobile_money, reference_externe,
-            etat_synchronisation_technique, etat_verification_financiere
-          ) VALUES (?, ?, ?, ?);
-        `,
-        bind: ["transaction-etat-invalide", "ref-invalide", "AUCUN", "DECLARE"],
+      insererTransactionMobileMoney({
+        id: "transaction-etat-sync-invalide",
+        reference: "ref-invalide-sync",
+        etatSync: "AUCUN",
+      }),
+    ).toThrow();
+    expect(() =>
+      insererTransactionMobileMoney({
+        id: "transaction-etat-financier-invalide",
+        reference: "ref-invalide-financier",
+        etatFinancier: "DECLARE",
+      }),
+    ).toThrow();
+    expect(() =>
+      insererTransactionMobileMoney({
+        id: "transaction-confirmee-sans-encaissement",
+        reference: "ref-confirmee-sans-encaissement",
+        etatFinancier: "CONFIRME",
+        dateConfirmation: "2026-11-04T10:30:00+01:00",
+      }),
+    ).toThrow();
+    expect(() =>
+      insererTransactionMobileMoney({
+        id: "transaction-confirmee-sans-date",
+        reference: "ref-confirmee-sans-date",
+        etatFinancier: "CONFIRME",
+        encaissement: "encaissement-confirme",
+      }),
+    ).toThrow();
+    expect(() =>
+      insererTransactionMobileMoney({
+        id: "transaction-initie-avec-encaissement",
+        reference: "ref-initie-avec-encaissement",
+        encaissement: "encaissement-confirme",
+      }),
+    ).toThrow();
+    expect(() =>
+      insererTransactionMobileMoney({
+        id: "transaction-reference-dupliquee",
+        reference: "ref-locale",
+      }),
+    ).toThrow();
+    expect(() =>
+      insererTransactionMobileMoney({
+        id: "transaction-montant-zero",
+        reference: "ref-montant-zero",
+        montant: 0,
       }),
     ).toThrow();
   });
