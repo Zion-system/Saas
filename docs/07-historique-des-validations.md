@@ -26,6 +26,7 @@ Ce document conserve les décisions et validations de conception. Une consolidat
 | VAL-015   | Gel du MCD V1.0 — Domaine 5, Pédagogie         | Référence normative de validation et gel communiquée par le propriétaire; date non précisée dans la source de consolidation |
 | VAL-016   | Validation du MCD global V1.0 avec réserve documentaire sur les lots financiers 1 à 5 | Validé explicitement par le propriétaire le 2026-11-04 |
 | VAL-017   | Validation du MLD financier reconstitué — Lots 1 à 5 (avec réserves) | Prononcée par le propriétaire le 2026-11-07 |
+| GEL-DOC19 | Gel du MPD financier SQLite V1.0 — Lots 1 à 5 (30 tables) | Gelé explicitement le 07/11/2026 suite aux verdicts D-0 à D-11 |
 
 Les références VAL existantes et leurs statuts sont conservés.
 
@@ -150,3 +151,35 @@ Réserves (annexes normatives de la validation) :
 Lecture de traçabilité : les décisions ratifiées valent faits établis ; leurs formulations DDL dérivées valent déductions motivées ; toute donnée non recontrôlée vaut réserve documentaire.
 
 Effets : ouverture de la phase corrective d'implémentation DDL et poursuite de la conception, dans les périmètres respectifs fixés par les mandats du propriétaire. VAL-013, VAL-014, VAL-015 et VAL-016 demeurent intactes.
+
+
+## 11. Gel du Modèle Physique de Données (MPD) financier SQLite V1.0 — Décisions D-0 à D-11 (07/11/2026)
+
+**Date :** 07/11/2026  
+**Événement :** Application des verdicts souverains du propriétaire D-0 à D-11 et gel normatif de `docs/19` en version 1.0.  
+**Portée :** Spécification physique SQLite pour les Lots 1 à 5 (30 tables physiques, 17 triggers, 14 index explicites).
+
+### 11.1 Régularisation de gouvernance D-0 (07/11/2026)
+Par décision explicite actuelle et non rétroactive du 07/11/2026, le propriétaire régularise l'opération d'amendement du commit local `31011c4` en `ac0bc61` intervenue lors des travaux préparatoires de vérification documentaire, en pleine connaissance du diff contrôlé (limité strictement aux sections §5 et §9 de `docs/19`, sans aucune altération des sections §1 à §4, §6 à §8 et §10).
+
+### 11.2 Registre des verdicts ratifiés D-1 à D-11
+Le propriétaire a formellement prononcé les verdicts suivants :
+- **D-1 (B.4) :** Ratification de la formulation M-1 régissant les ouvertures concurrentes Offline-First de sessions de caisse (Q-05 / VAL-014).
+- **D-2 (B.5) :** Ratification de la formulation M-2 avec la règle d'or R-1 : « une seule incidence par couple (source canonique, session de caisse) » pour les remboursements d'espèces.
+- **D-3 (Renforcement B.5) :** Adoption de la contrainte physique `CHECK (type_mouvement <> 'REMBOURSEMENT' OR id_operation_source IS NOT NULL)` et de l'index partiel unique `idx_mouvement_remboursement_unique` sur `mouvement_caisse`.
+- **D-4 (B.7) :** Ratification de la formulation M-3 : rapprochement définitif distinct de la clôture, irrévocabilité garantie par le doublet index partiel unique `idx_rapprochement_definitif` (`WHERE est_definitif = 1`) et triggers append-only GAP-15.
+- **D-5 (B.8) :** Adoption de l'Option C pour l'architecture de scellement de caisse (séquence clôture → dénombrement → scellement par transition explicite `session_caisse.etat = 'CLOTUREE'`), armement du contrôle de concordance arithmétique (16ᵉ trigger), verrou d'insertion post-clôture (17ᵉ trigger `trg_detail_comptage_no_insert_closed`), et réserve R-6 (`trg_session_caisse_cloturee_immutable` avec clause `WHEN OLD.etat = 'CLOTUREE'` interdisant toute réouverture d'une session fermée). Règle R-3 respectée (aucun mouvement de caisse dans la fenêtre).
+- **D-6a (B.9 Mécanisme) :** Adoption de l'Option 1 : création de la table de nomenclature `ref_coupure_xaf` (30ᵉ table) avec clé étrangère depuis `detail_comptage_caisse(valeur_unitaire_fcfa)`. Règle R-4 : table administrative mutable hors append-only.
+- **D-6b (B.9 Contenu) :** Adoption du sous-ensemble opérationnel actif initial ≥ 25 FCFA (10 formes physiques, 9 valeurs distinctes : billets 10 000, 5 000, 2 000, 1 000, 500 ; pièces 500, 200 Type 2024, 100, 50, 25 FCFA ; 500 FCFA avec `type_coupure = 'BILLET ET PIECE'`). Démonétisation UMAC des pièces antérieures à 2006 effective au 01/11/2026.
+- **D-7 (B.1) :** Ratification des énumérations via contraintes natives `TEXT CHECK (colonne IN (...))`.
+- **D-8 (B.2) :** Ratification de la validation atomique des plans de règlement avec archivage de l'ancien plan.
+- **D-9 (B.3) :** Ratification du séquencement transactionnel strict sous `BEGIN IMMEDIATE` (sous réserve Q-03).
+- **D-10 (B.6) :** Ratification de la destination facultative sur `transmission_fonds` avec traçabilité obligatoire du destinataire physique si NULL (`FIN-LOT5-007`).
+- **D-11 (B.10) :** Ratification du cycle de figeage asynchrone à deux étapes sur `transmission_fonds`.
+
+### 11.3 Effets et gel normatif
+- `docs/19-mpd-financier-sqlite.md` est définitivement gelé en version 1.0.
+- Périmètre arrêté : 30 tables physiques, 17 triggers, 14 index explicites documentés.
+- Contrôles R-1 à R-6 intégralement satisfaits.
+- Ce gel constitue le préalable obligatoire et le socle technique intangible pour l'ouverture du mandat d'élaboration du plan correctif des migrations 003 à 007.
+- Les décisions Q-01 à Q-09, VAL-013, VAL-014, VAL-015, VAL-016 et VAL-017 demeurent intactes et intangibles.
