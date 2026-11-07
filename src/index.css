@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+@theme {
+  /* Palette issue de la maquette « tableau de bord » */
+  --color-vert-fonce: #0e2a1b;
+  --color-vert-moyen: #1b5e3a;
+  --color-vert-fonce-2: #123d27;
+  --color-creme: #f7f3ea;
+  --color-or: #d9a441;
+}
+
 :root {
   font-family: Inter, system-ui, sans-serif;
   font-synthesis: none;
@@ -22,4 +31,6 @@ body,
 
 body {
   min-height: 100vh;
+  background-color: var(--color-creme);
+  color: #1c1917;
 }
