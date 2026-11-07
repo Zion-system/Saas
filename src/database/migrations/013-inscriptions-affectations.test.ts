@@ -188,7 +188,7 @@ afterEach(() => {
 describe("migration inscriptions_affectations", () => {
   it("s’enregistre après 012 et préserve les données et le schéma financier existants", () => {
     expect(migrations.map((migration) => migration.version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
     ]);
     expect(migrations[12]).toMatchObject({
       version: 13,
