@@ -17,6 +17,7 @@ import synchronisationOfflineFirst from "./010-synchronisation-offline-first";
 import elevesResponsables from "./011-eleves-responsables";
 import candidaturesPreinscriptions from "./012-candidatures-preinscriptions";
 import inscriptionsAffectations from "./013-inscriptions-affectations";
+import correction005EcheanciersReglements from "./014-correction-005-echeanciers-reglements";
 
 /**
  * Registre chronologique des migrations SQLite.
@@ -40,4 +41,5 @@ export const migrations: Migration[] = [
   elevesResponsables,
   candidaturesPreinscriptions,
   inscriptionsAffectations,
+  correction005EcheanciersReglements,
 ];

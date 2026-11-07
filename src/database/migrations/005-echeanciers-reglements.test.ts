@@ -120,10 +120,10 @@ describe("migration echeanciers_reglements", () => {
     });
 
     expect(versions.map((row) => row.version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
     ]);
     expect(migrations.map((migration) => migration.version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
     ]);
     expect(
       database.exec({
@@ -167,8 +167,9 @@ describe("migration echeanciers_reglements", () => {
       sql: `
         INSERT INTO plan_reglement_creance (
           id_plan_reglement_creance, id_creance,
-          id_version_modele_echeancier, montant_total_planifie_fcfa
-        ) VALUES (?, ?, ?, ?);
+          id_version_modele_echeancier, montant_total_planifie_fcfa,
+          type_plan, etat_plan
+        ) VALUES (?, ?, ?, ?, 'INITIAL', 'BROUILLON');
       `,
       bind: ["plan-1", "creance-1", "version-1", 10000],
     });
@@ -233,8 +234,9 @@ describe("migration echeanciers_reglements", () => {
       sql: `
         INSERT INTO plan_reglement_creance (
           id_plan_reglement_creance, id_creance,
-          id_version_modele_echeancier, montant_total_planifie_fcfa
-        ) VALUES (?, ?, ?, ?);
+          id_version_modele_echeancier, montant_total_planifie_fcfa,
+          type_plan, etat_plan
+        ) VALUES (?, ?, ?, ?, 'INITIAL', 'BROUILLON');
       `,
       bind: ["plan-1", "creance-1", "version-1", 10000],
     });
@@ -269,7 +271,7 @@ describe("migration echeanciers_reglements", () => {
       "creance-1",
       "plan-1",
       10000,
-      1,
+      2,
       "CODE_NON_SPECIFIE",
       "reamenagement-1",
     );
@@ -299,6 +301,137 @@ describe("migration echeanciers_reglements", () => {
       database.exec(
         "DELETE FROM echeance_creance WHERE id_echeance_creance = 'echeance-remplacee';",
       ),
+    ).toThrow();
+  });
+
+  it("garantit l’unicité du plan actif par créance et la somme des échéances (D-8, Q-03)", () => {
+    database.exec("INSERT INTO modele_echeancier VALUES ('modele-1');");
+    database.exec({
+      sql: "INSERT INTO version_modele_echeancier VALUES (?, ?);",
+      bind: ["version-1", "modele-1"],
+    });
+    database.exec({
+      sql: `
+        INSERT INTO plan_reglement_creance (
+          id_plan_reglement_creance, id_creance,
+          id_version_modele_echeancier, montant_total_planifie_fcfa,
+          type_plan, etat_plan
+        ) VALUES (?, ?, ?, ?, 'INITIAL', 'BROUILLON');
+      `,
+      bind: ["plan-brouillon", "creance-1", "version-1", 10000],
+    });
+    insererEcheance("echeance-b1", "creance-1", "plan-brouillon", 6000, 1);
+    insererEcheance("echeance-b2", "creance-1", "plan-brouillon", 4000, 2);
+
+    database.exec({
+      sql: `
+        INSERT INTO plan_reglement_creance (
+          id_plan_reglement_creance, id_creance,
+          id_version_modele_echeancier, montant_total_planifie_fcfa,
+          type_plan, etat_plan
+        ) VALUES (?, ?, ?, ?, 'INITIAL', 'ACTIF');
+      `,
+      bind: ["plan-actif-creance-2", "creance-2", "version-1", 8000],
+    });
+    expect(() =>
+      insererEcheance("echeance-actif-partiel", "creance-2", "plan-actif-creance-2", 5000, 1),
+    ).toThrow();
+    insererEcheance("echeance-actif-complet", "creance-2", "plan-actif-creance-2", 8000, 1);
+    expect(() =>
+      insererEcheance("echeance-actif-supplement", "creance-2", "plan-actif-creance-2", 1000, 2),
+    ).toThrow();
+    expect(() =>
+      database.exec(
+        "UPDATE echeance_creance SET montant_exigible_fcfa = 7000 WHERE id_echeance_creance = 'echeance-actif-complet';",
+      ),
+    ).toThrow();
+    expect(() =>
+      database.exec(
+        "DELETE FROM echeance_creance WHERE id_echeance_creance = 'echeance-actif-complet';",
+      ),
+    ).toThrow();
+    expect(() =>
+      database.exec(
+        "UPDATE echeance_creance SET date_exigibilite = '2026-04-01' WHERE id_echeance_creance = 'echeance-actif-complet';",
+      ),
+    ).not.toThrow();
+
+    database.exec(
+      "UPDATE plan_reglement_creance SET etat_plan = 'ACTIF' WHERE id_plan_reglement_creance = 'plan-brouillon';",
+    );
+    expect(() =>
+      database.exec({
+        sql: `
+          INSERT INTO plan_reglement_creance (
+            id_plan_reglement_creance, id_creance,
+            id_version_modele_echeancier, montant_total_planifie_fcfa,
+            type_plan, etat_plan
+          ) VALUES (?, ?, ?, ?, 'INITIAL', 'ACTIF');
+        `,
+        bind: ["plan-actif-second", "creance-1", "version-1", 10000],
+      }),
+    ).toThrow();
+    expect(() =>
+      database.exec({
+        sql: `
+          INSERT INTO plan_reglement_creance (
+            id_plan_reglement_creance, id_creance,
+            id_version_modele_echeancier, montant_total_planifie_fcfa,
+            type_plan, etat_plan
+          ) VALUES (?, ?, ?, ?, 'INITIAL', 'BROUILLON');
+        `,
+        bind: ["plan-brouillon-second", "creance-1", "version-1", 10000],
+      }),
+    ).not.toThrow();
+    expect(() =>
+      insererEcheance("echeance-brouillon-activee", "creance-1", "plan-brouillon", 1, 3),
+    ).toThrow();
+
+    expect(() =>
+      database.exec({
+        sql: `
+          INSERT INTO plan_reglement_creance (
+            id_plan_reglement_creance, id_creance,
+            id_version_modele_echeancier, montant_total_planifie_fcfa,
+            type_plan, etat_plan
+          ) VALUES (?, ?, ?, ?, 'INITIAL', 'BROUILLON');
+        `,
+        bind: ["plan-mauvais-type", "creance-2", "version-1", 100],
+      }),
+    ).not.toThrow();
+    expect(() =>
+      database.exec({
+        sql: `
+          INSERT INTO plan_reglement_creance (
+            id_plan_reglement_creance, id_creance,
+            id_version_modele_echeancier, montant_total_planifie_fcfa,
+            type_plan, etat_plan
+          ) VALUES (?, ?, ?, ?, 'INCONNU', 'BROUILLON');
+        `,
+        bind: ["plan-type-invalide", "creance-2", "version-1", 100],
+      }),
+    ).toThrow();
+
+    expect(() =>
+      insererEcheance("echeance-rang-zero", "creance-1", "plan-brouillon", 100, 0),
+    ).toThrow();
+    expect(() =>
+      insererEcheance("echeance-montant-zero", "creance-1", "plan-brouillon", 0, 3),
+    ).toThrow();
+    expect(() =>
+      insererEcheance("echeance-rang-duplique", "creance-1", "plan-brouillon", 100, 1),
+    ).toThrow();
+    expect(() =>
+      database.exec({
+        sql: `
+          INSERT INTO echeance_creance (
+            id_echeance_creance, id_creance, id_plan_reglement_creance,
+            montant_exigible_fcfa, date_exigibilite, rang, etat_administratif,
+            statut_echeance
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+        `,
+        bind: ["echeance-statut-invalide", "creance-1", "plan-brouillon", 100, "2026-05-01", 4, "ADMIN", "INCONNU"],
+      }),
     ).toThrow();
   });
 });

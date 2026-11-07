@@ -87,10 +87,10 @@ describe("intégrité globale du schéma SQLite V1", () => {
     });
 
     expect(versions.map((row) => row.version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
     ]);
     expect(migrations.map((migration) => migration.version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
     ]);
     expect(objectCounts).toContainEqual({ type: "table", count: 75 });
     expect(objectCounts).toContainEqual({ type: "view", count: 1 });
@@ -154,8 +154,9 @@ describe("intégrité globale du schéma SQLite V1", () => {
         12000, 0, 12000
       );
       INSERT INTO plan_reglement_creance (
-        id_plan_reglement_creance, id_creance, montant_total_planifie_fcfa
-      ) VALUES ('plan-1', 'creance-1', 12000);
+        id_plan_reglement_creance, id_creance, montant_total_planifie_fcfa,
+        type_plan
+      ) VALUES ('plan-1', 'creance-1', 12000, 'INITIAL');
       INSERT INTO echeance_creance (
         id_echeance_creance, id_creance, id_plan_reglement_creance,
         montant_exigible_fcfa, date_exigibilite, rang, etat_administratif
