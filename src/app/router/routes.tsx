@@ -1,29 +1,34 @@
 import { Route, Routes } from "react-router-dom";
+import { LayoutPrincipal } from "../../components/layout/LayoutPrincipal";
+import { Accueil } from "../../pages/accueil/Accueil";
+import { Diagnostic } from "../../pages/diagnostic/Diagnostic";
+import { PageIntrouvable } from "../../pages/erreurs/PageIntrouvable";
+import { ModuleAVenir } from "../../pages/module-a-venir/ModuleAVenir";
 
-function Accueil() {
-  return (
-    <main>
-      <h1>ERP Scolaire</h1>
-      <p>Bienvenue dans votre application de gestion scolaire.</p>
-    </main>
-  );
-}
-
-function PageIntrouvable() {
-  return (
-    <main>
-      <h1>404 - Page introuvable</h1>
-      <p>La page demandée n'existe pas.</p>
-    </main>
-  );
-}
+const CHEMINS_MODULES = [
+  "/organisation",
+  "/eleves",
+  "/candidatures",
+  "/inscriptions",
+  "/facturation",
+  "/encaissements",
+  "/caisse",
+  "/relances",
+  "/rapports",
+  "/parametres",
+];
 
 export function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<Accueil />} />
-
-      <Route path="*" element={<PageIntrouvable />} />
+      <Route element={<LayoutPrincipal />}>
+        <Route path="/" element={<Accueil />} />
+        <Route path="/diagnostic" element={<Diagnostic />} />
+        {CHEMINS_MODULES.map((chemin) => (
+          <Route key={chemin} path={chemin} element={<ModuleAVenir />} />
+        ))}
+        <Route path="*" element={<PageIntrouvable />} />
+      </Route>
     </Routes>
   );
 }
