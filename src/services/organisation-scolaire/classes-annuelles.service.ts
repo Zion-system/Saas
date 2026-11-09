@@ -12,7 +12,7 @@ export function creerServiceClassesAnnuelles(database: SQLiteExecutor) {
       return selectionner(
         database,
         `SELECT id_classe_annuelle, id_annee_scolaire, id_niveau,
-                id_modele_classe, id_etablissement
+                id_modele_classe, id_etablissement, capacite_max
          FROM classe_annuelle
          WHERE id_annee_scolaire = ? AND id_etablissement = ?
          ORDER BY id_classe_annuelle;`,
@@ -24,7 +24,7 @@ export function creerServiceClassesAnnuelles(database: SQLiteExecutor) {
       const rows = await selectionner<ClasseAnnuelle>(
         database,
         `SELECT id_classe_annuelle, id_annee_scolaire, id_niveau,
-                id_modele_classe, id_etablissement
+                id_modele_classe, id_etablissement, capacite_max
          FROM classe_annuelle
          WHERE id_classe_annuelle = ?;`,
         [id],
@@ -37,16 +37,17 @@ export function creerServiceClassesAnnuelles(database: SQLiteExecutor) {
         database.query(
           `INSERT INTO classe_annuelle (
              id_classe_annuelle, id_annee_scolaire, id_niveau,
-             id_modele_classe, id_etablissement
-           ) VALUES (?, ?, ?, ?, ?)
+             id_modele_classe, id_etablissement, capacite_max
+           ) VALUES (?, ?, ?, ?, ?, ?)
            RETURNING id_classe_annuelle, id_annee_scolaire, id_niveau,
-                     id_modele_classe, id_etablissement;`,
+                     id_modele_classe, id_etablissement, capacite_max;`,
           [
             classe.id_classe_annuelle,
             classe.id_annee_scolaire,
             classe.id_niveau,
             classe.id_modele_classe,
             classe.id_etablissement,
+            classe.capacite_max ?? null,
           ],
         ),
       );
@@ -61,16 +62,17 @@ export function creerServiceClassesAnnuelles(database: SQLiteExecutor) {
         database.query(
           `UPDATE classe_annuelle
            SET id_classe_annuelle = ?, id_annee_scolaire = ?, id_niveau = ?,
-               id_modele_classe = ?, id_etablissement = ?
+               id_modele_classe = ?, id_etablissement = ?, capacite_max = ?
            WHERE id_classe_annuelle = ?
            RETURNING id_classe_annuelle, id_annee_scolaire, id_niveau,
-                     id_modele_classe, id_etablissement;`,
+                     id_modele_classe, id_etablissement, capacite_max;`,
           [
             changements.id_classe_annuelle,
             changements.id_annee_scolaire,
             changements.id_niveau,
             changements.id_modele_classe,
             changements.id_etablissement,
+            changements.capacite_max ?? null,
             id,
           ],
         ),

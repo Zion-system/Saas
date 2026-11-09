@@ -182,6 +182,7 @@ describe("services d’organisation scolaire", () => {
       id_niveau: "niveau-2",
       id_modele_classe: "modele-2",
       id_etablissement: "etablissement-1",
+      capacite_max: 40,
     });
     expect(await services.classesAnnuelles.obtenir("classe-1")).toEqual(classe);
     expect(
@@ -194,8 +195,13 @@ describe("services d’organisation scolaire", () => {
       await services.classesAnnuelles.modifier("classe-1", {
         ...classe,
         id_classe_annuelle: "classe-2",
+        capacite_max: 45,
       }),
-    ).toEqual({ ...classe, id_classe_annuelle: "classe-2" });
+    ).toEqual({
+      ...classe,
+      id_classe_annuelle: "classe-2",
+      capacite_max: 45,
+    });
 
     await services.classesAnnuelles.supprimer("classe-2");
     await services.periodesPedagogiques.supprimer("periode-2");

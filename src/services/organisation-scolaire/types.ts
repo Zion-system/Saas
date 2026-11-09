@@ -37,4 +37,6 @@ export interface ClasseAnnuelle {
   id_niveau: string;
   id_modele_classe: string;
   id_etablissement: string;
+  /** Capacité maximale (colonne nullable ajoutée par la migration 013). */
+  capacite_max?: number | null;
 }
