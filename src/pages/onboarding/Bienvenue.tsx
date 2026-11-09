@@ -12,11 +12,8 @@ export function Bienvenue() {
       {/* En-tête avec boutons Inscription/Connexion */}
       <header className="absolute top-0 right-0 p-6">
         <div className="flex gap-3">
-          <Link to="/onboarding/inscription">
-            <Button variant="outline">Inscription</Button>
-          </Link>
           <Link to="/onboarding/connexion">
-            <Button variant="vert">Connexion</Button>
+            <Button variant="vert">Commencer</Button>
           </Link>
         </div>
       </header>
@@ -127,7 +124,7 @@ export function Bienvenue() {
                   />
                   <p className="mt-1 text-xs text-stone-500">Au moins 10 caractères</p>
                 </div>
-                <Link to="/onboarding/inscription" className="block">
+                <Link to="/onboarding/connexion" className="block">
                   <Button variant="vert" className="w-full">
                     Créer mon compte
                   </Button>

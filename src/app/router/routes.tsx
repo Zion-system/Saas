@@ -6,7 +6,6 @@ import { PageIntrouvable } from "../../pages/erreurs/PageIntrouvable";
 import { ModuleAVenir } from "../../pages/module-a-venir/ModuleAVenir";
 import { Organisation } from "../../pages/organisation/Organisation";
 import { Bienvenue } from "../../pages/onboarding/Bienvenue";
-import { Inscription } from "../../pages/onboarding/Inscription";
 import { Connexion } from "../../pages/onboarding/Connexion";
 import { Ecole } from "../../pages/onboarding/Ecole";
 import { Classes } from "../../pages/onboarding/Classes";
@@ -45,7 +44,6 @@ export function AppRoutes() {
     <Routes>
       {/* Routes publiques (onboarding) */}
       <Route path="/onboarding" element={<Bienvenue />} />
-      <Route path="/onboarding/inscription" element={<Inscription />} />
       <Route path="/onboarding/connexion" element={<Connexion />} />
       <Route path="/onboarding/ecole" element={<GardeSession><Ecole /></GardeSession>} />
       <Route path="/onboarding/classes" element={<GardeSession><Classes /></GardeSession>} />
