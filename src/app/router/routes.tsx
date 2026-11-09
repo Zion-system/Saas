@@ -4,9 +4,9 @@ import { Accueil } from "../../pages/accueil/Accueil";
 import { Diagnostic } from "../../pages/diagnostic/Diagnostic";
 import { PageIntrouvable } from "../../pages/erreurs/PageIntrouvable";
 import { ModuleAVenir } from "../../pages/module-a-venir/ModuleAVenir";
+import { Organisation } from "../../pages/organisation/Organisation";
 
 const CHEMINS_MODULES = [
-  "/organisation",
   "/eleves",
   "/candidatures",
   "/inscriptions",
@@ -15,6 +15,8 @@ const CHEMINS_MODULES = [
   "/caisse",
   "/relances",
   "/rapports",
+  "/bulletins",
+  "/absences",
   "/parametres",
 ];
 
@@ -23,6 +25,7 @@ export function AppRoutes() {
     <Routes>
       <Route element={<LayoutPrincipal />}>
         <Route path="/" element={<Accueil />} />
+        <Route path="/organisation" element={<Organisation />} />
         <Route path="/diagnostic" element={<Diagnostic />} />
         {CHEMINS_MODULES.map((chemin) => (
           <Route key={chemin} path={chemin} element={<ModuleAVenir />} />
