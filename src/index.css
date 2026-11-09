@@ -2,11 +2,19 @@
 
 @theme {
   /* Palette issue de la maquette « tableau de bord » */
-  --color-vert-fonce: #0e2a1b;
-  --color-vert-moyen: #1b5e3a;
-  --color-vert-fonce-2: #123d27;
-  --color-creme: #f7f3ea;
+  --color-vert-fonce: #052e16;
+  --color-vert-moyen: #166534;
+  --color-vert-fonce-2: #14532d;
+  --color-vert-sidebar: #0b3b2d;
+  --color-vert-sidebar-actif: #1f6b4a;
+  --color-vert-bloc: #256b52;
+  --color-vert-bloc-clair: #3a7d61;
+  --color-creme: #f8f7f3;
   --color-or: #d9a441;
+  --color-pastel-menthe: #e0ece9;
+  --color-pastel-peche: #f6ece4;
+  --color-pastel-ciel: #e8f0f7;
+  --color-pastel-rose: #f8e9e7;
 }
 
 :root {
@@ -32,5 +40,5 @@ body,
 body {
   min-height: 100vh;
   background-color: var(--color-creme);
-  color: #1c1917;
+  color: #111827;
 }
