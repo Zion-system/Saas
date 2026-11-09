@@ -1,0 +1,1026 @@
+
+Suite de
+GESTION-SCOLAIRE 1 (14)
+Allons-y directement. Passons à l'analyse détaillée des trois cycles critiques (**D, E et G**) qui mettent à l'épreuve l'ensemble des mécanismes transversaux des Lots 1 à 7.
+
+---
+
+### Cycle D — Annulation d'une créance (Lots 2, 3, 4, 6 & 7)
+
+Ce cycle teste la capacité du système à annuler une obligation tout en protégeant l'historique des encaissements et des affectations.
+
+1. **Émission initiale** : Une créance de 100 000 FCFA est émise (Lot 2) avec un échéancier de deux échéances de 50 000 FCFA (Lot 3). Le parent règle 50 000 FCFA, affectés à la première échéance (Lot 4).
+2. **Décision administrative d'annulation** : L'établissement décide d'annuler totalement la créance (CREANCE.statut_creance = 'ANNULEE' avec motif et auteur, Lot 2).
+3. **Traitement en cascade des échéances (Lot 3 & Lot 6)** :
+* L'échéance 1 (soldée) conserve son historique de règlement.
+* L'échéance 2 (impayée) est neutralisée (passée à l'état ANNULEE).
+
+
+4. **Gestion des encaissements et contrepassations (Lot 4 & Lot 6)** :
+* L'affectation de 50 000 FCFA sur l'échéance 1 fait l'objet d'une contrepassation traçable (CONTREPASSATION_AFFECTATION).
+* La somme ainsi libérée ne disparaît pas : elle est transformée en crédit disponible pour l'élève via un mouvement de crédit de contrepassation (MOUVEMENT_CREDIT), ou fait l'objet d'un remboursement si aucun autre solde n'est dû.
+
+
+5. **Restitution au Lot 7** : Le calcul dynamique du reste à payer de l'élève retombe à 0 FCFA pour cette créance, tandis que le crédit disponible est mis à jour instantanément.
+
+---
+
+### Cycle E — Remboursement multi-sources (Lots 4, 5, 6 & 7)
+
+Ce cycle valide la précision chirurgicale de la traçabilité financière et des mandats de restitution.
+
+1. **Constitution des sources de crédit** : Un élève dispose d'un crédit disponible de 60 000 FCFA issu d'un encaissement direct du père (Source 1) et de 40 000 FCFA issus d'un avoir sur une ancienne créance (Source 2). Total disponible : 100 000 FCFA.
+2. **Demande de remboursement** : Un tiers (un oncle) demande le remboursement de 80 000 FCFA.
+3. **Vérification et Réservation (Lot 6)** :
+* Le système pose une réservation (RESERVATION_CREDIT) sur les sources.
+* Puisque le demandeur est un tiers, un **MANDAT_RESTITUTION** est exigé et rattaché spécifiquement aux lignes de prélèvement tierces.
+
+
+4. **Exécution du décaissement (Lot 5 & Lot 6)** :
+* Un REMBOURSEMENT_FONDS de 80 000 FCFA est émis.
+* Il se décompose via **LIGNE_REMBOURSEMENT_CREDIT** : 50 000 FCFA prélevés sur la Source 1 (sans mandat restrictif) et 30 000 FCFA prélevés sur la Source 2 (couverts par le mandat du tiers).
+* Si le décaissement est en espèces, il est imputé **uniquement** comme sortie physique sur la SESSION_CAISSE active du jour (Lot 5), sans toucher aux sessions closes.
+
+
+5. **Mise à jour du pilotage (Lot 7)** : Le solde net et les crédits disponibles restants (20 000 FCFA) sont recalculés dynamiquement.
+
+---
+
+### Cycle G — Paiement Mobile Money hors ligne (Lots 4, 5, 7 & Offline-First)
+
+Ce cycle teste la résilience du système en zone déconnectée et la gestion des états transitoires.
+
+1. **Déclaration locale (Hors ligne)** : Dans une zone sans connexion, un caissier enregistre un paiement Mobile Money de 50 000 FCFA reçu par SMS opérateur (Lot 4). L'encaissement est marqué comme PROVISOIRE_LOCALE / en attente de confirmation centrale.
+2. **Projection locale (Lot 7)** : L'appareil intègre cette entrée dans sa projection locale des soldes et du journal financier, en affichant clairement les métadonnées de fraîcheur (*"Donnée locale non synchronisée"*). Le solde de caisse physique (Lot 5) n'est **pas** impacté puisque c'est un flux électronique.
+3. **Synchronisation et arbitrage (Retour de connexion)** :
+* L'événement est transmis au serveur central.
+* Le serveur vérifie l'unicité de la référence de transaction externe (idempotence) et interroge l'API de l'opérateur (ou valide la réconciliation).
+
+
+4. **Dénouement** :
+* *Cas nominal* : Transaction valide $\rightarrow$ L'encaissement passe à l'état VALIDÉ, les affectations sur les échéances du Lot 3 sont confirmées, et le solde central est consolidé.
+* *Cas de conflit / faux reçu* : Transaction rejetée ou dupliquée $\rightarrow$ L'encaissement bascule en CONFLIT, une alerte est levée pour le responsable financier, et la projection locale est corrigée sans qu'aucune fausse trésorerie n'ait altéré les comptes.
+
+
+
+---
+
+### Prochaine étape
+
+Ces trois cycles démontrent la parfaite étanchéité et la cohérence causale des huit lots du Domaine 4.
+
+Souhaites-tu que nous validions officiellement cet audit des cycles pour clore le Lot 8 et passer directement à la production de la **synthèse du MLD global définitif** et du dictionnaire consolidé du Domaine 4 ?
+Les trois cycles couvrent effectivement les interactions les plus sensibles du Domaine 4. Je valide leur architecture générale, mais je ne recommande pas encore de déclarer l'audit entièrement conforme : trois corrections métier sont nécessaires avant de figer les résultats.
+
+Je les examine sans rouvrir les Lots 4, 5 et 6.
+
+1. Cycle D — Annulation d'une créance
+Verdict : conforme sous une réserve importante concernant les échéances soldées.
+Le scénario est cohérent dans son principe :
+
+La créance est annulée.
+Les échéances non réglées sont neutralisées.
+Les affectations existantes sont contrepassées.
+Les encaissements historiques sont conservés.
+Les montants libérés sont traités selon les mécanismes du Lot 6.
+Correction 1 : ne pas confondre crédit disponible et remboursement
+Dans ton scénario, les 50 000 FCFA contrepassés deviennent un crédit disponible.
+
+C'est cohérent avec les mécanismes du Lot 6, sous réserve de la traçabilité entre la contrepassation et le mouvement de crédit correspondant.
+
+En revanche, je corrige cette formulation :
+
+« Ou fait l'objet d'un remboursement si aucun autre solde n'est dû. »
+
+L'absence d'autre dette ne déclenche pas automatiquement un remboursement.
+
+La règle correcte est :
+
+La contrepassation libère le montant concerné.
+Le montant est traité selon les règles de constitution du crédit du Lot 6.
+Le crédit demeure disponible tant qu'il n'est pas utilisé ou remboursé.
+Un remboursement nécessite une opération distincte, une demande, les validations nécessaires et une exécution effective.
+Un établissement ne doit pas transformer automatiquement une contrepassation en sortie de trésorerie.
+
+Correction 2 : traitement de l'échéance déjà soldée
+C'est le point qui nécessite une attention particulière.
+
+Le Lot 3 protège l'historique des échéances payées et exclut leur modification rétroactive dans le cadre d'un réaménagement.
+
+Le Lot 6 définit cependant les conséquences d'une annulation de créance.
+
+Il faut donc distinguer :
+
+L'historique de l'échéance et de son règlement, qui doit rester consultable.
+Son statut administratif après annulation de la créance.
+La neutralisation de son obligation financière.
+Je recommande de conserver intégralement l'échéance soldée et son affectation historique, puis de tracer la contrepassation séparément. Son éventuel changement de statut administratif doit respecter les règles spécifiques du Lot 6, sans effacer son historique.
+
+Résultat attendu
+Élément	Avant annulation	Après annulation
+Créance active	100 000	0
+Échéance 1	Soldée : 50 000	Historique conservé
+Échéance 2	50 000 dus	Annulée
+Affectation initiale	50 000	Contrepassée
+Crédit résultant	0	50 000
+Reste à payer	50 000	0
+Le crédit de 50 000 FCFA ne constitue pas un remboursement exécuté.
+
+Décision : Cycle D validable après intégration de ces deux précisions.
+
+2. Cycle E — Remboursement multi-sources
+Verdict : conforme dans sa structure, mais le scénario contient une incohérence concernant le mandat de restitution.
+C'est le point le plus important du cycle.
+
+Situation proposée
+Source	Origine	Montant
+Source 1	Encaissement du père	60 000
+Source 2	Avoir sur ancienne créance	40 000
+Total		100 000
+Un oncle demande un remboursement de 80 000 FCFA.
+
+Le remboursement est ventilé ainsi :
+
+Source	Montant remboursé
+Source 1	50 000
+Source 2	30 000
+Total	80 000
+Il reste bien 20 000 FCFA de crédit.
+
+Correction : le mandat doit être évalué source par source
+Le scénario indique que les 50 000 FCFA prélevés sur la Source 1 ne nécessitent pas de mandat restrictif, tandis que les 30 000 FCFA prélevés sur la Source 2 en nécessitent un.
+
+Or, le bénéficiaire est l'oncle et le payeur initial de la Source 1 est le père.
+
+Le lien familial entre le père et l'oncle ne constitue pas une autorisation de restitution.
+
+Un mandat est donc nécessaire pour la Source 1 également, sauf si le bénéficiaire est finalement le payeur initial de cette source.
+
+La règle du Lot 6 doit être appliquée individuellement à chaque ligne de remboursement :
+
+Source	Payeur d'origine	Bénéficiaire	Mandat
+Source 1	Père	Oncle	Obligatoire
+Source 2	À déterminer selon l'origine du crédit	Oncle	Obligatoire si bénéficiaire différent du payeur concerné
+Chaque ligne de LIGNE_REMBOURSEMENT_CREDIT doit conserver la référence au mandat applicable lorsque celui-ci est requis.
+
+Autre distinction importante
+Il faut séparer trois personnes :
+
+Le demandeur du remboursement ;
+Le payeur d'origine ;
+Le bénéficiaire effectif des fonds.
+Ces personnes peuvent être différentes.
+
+Le demandeur n'est pas automatiquement le bénéficiaire autorisé.
+
+Traitement des réservations
+Le mécanisme proposé est validé :
+
+Sélection des sources ;
+Vérification des soldes disponibles ;
+Création des réservations ;
+Validation centrale ;
+Exécution du remboursement ;
+Consommation définitive des crédits concernés.
+Une réservation locale provisoire ne garantit jamais l'exclusivité centrale.
+
+Trésorerie
+Pour un remboursement en espèces :
+
+Le décaissement est enregistré dans REMBOURSEMENT_FONDS.
+Il est rattaché à la session qui réalise réellement le paiement.
+Il ne modifie aucune session historiquement clôturée.
+Il ne doit pas être dupliqué dans MOUVEMENT_CAISSE.
+Décision : Cycle E validable après correction de la règle du mandat par source de crédit.
+
+3. Cycle G — Paiement Mobile Money hors ligne
+Verdict : architecture cohérente, mais une distinction supplémentaire est indispensable.
+Le scénario mélange actuellement deux dimensions différentes :
+
+L'état de synchronisation de l'opération.
+L'état de vérification financière de la transaction Mobile Money.
+Ces deux dimensions ne doivent pas être représentées par un seul statut.
+
+3.1. État de synchronisation
+Il indique où se trouve l'opération dans le processus Offline-First.
+
+Exemples :
+
+LOCALE_NON_SYNCHRONISEE
+EN_ATTENTE_SYNCHRONISATION
+SYNCHRONISEE
+CONFLIT_SYNCHRONISATION
+3.2. État de vérification Mobile Money
+Le Lot 4 conserve ses états métier :
+
+DECLARE
+EN_ATTENTE_VERIFICATION
+CONFIRME
+REJETE
+La synchronisation d'une déclaration ne signifie donc pas qu'elle est confirmée.
+
+Une déclaration peut être parfaitement synchronisée et toujours en attente de vérification.
+
+3.3. Scénario corrigé
+Étape 1 — Déclaration locale
+
+Le caissier enregistre un paiement déclaré de 50 000 FCFA.
+
+L'opération est conservée localement.
+
+État de synchronisation :
+
+LOCALE_NON_SYNCHRONISEE
+
+État de vérification :
+
+DECLARE
+
+L'appareil peut présenter cette déclaration dans une projection financière provisoire.
+
+Mais il ne doit pas la présenter comme un encaissement Mobile Money confirmé.
+
+Étape 2 — Synchronisation
+
+L'appareil retrouve Internet.
+
+L'événement est transmis au serveur.
+
+État de synchronisation :
+
+SYNCHRONISEE
+
+État de vérification :
+
+EN_ATTENTE_VERIFICATION
+
+Le serveur contrôle la référence, l'opérateur, le montant et les éventuelles collisions.
+
+Étape 3 — Vérification
+
+Deux possibilités :
+
+Résultat	Conséquence
+Transaction confirmée	Encaissement reconnu comme confirmé
+Transaction rejetée	Déclaration conservée, non reconnue comme encaissement confirmé
+La vérification peut s'appuyer sur une API opérateur lorsqu'elle est disponible, ou sur un mécanisme de rapprochement et de validation autorisé.
+
+Il ne faut pas rendre l'API opérateur obligatoire dans tous les cas : cela créerait une dépendance technique et commerciale qui n'est pas garantie.
+
+3.4. Conséquence sur les affectations
+C'est le point essentiel.
+
+Une déclaration Mobile Money en attente ne doit pas réduire définitivement la dette.
+
+Si une affectation provisoire existe localement, elle doit être clairement identifiée comme provisoire et rester dépendante de la confirmation de l'encaissement.
+
+En cas de rejet :
+
+L'encaissement n'est pas reconnu comme confirmé.
+L'affectation provisoire est rejetée ou neutralisée.
+Le reste à payer est recalculé.
+L'historique de la déclaration est conservé.
+Une référence externe déjà utilisée doit déclencher un contrôle de doublon. Il faut toutefois distinguer la déclaration dupliquée de la transaction initiale : le conflit ne doit pas automatiquement invalider une transaction antérieurement confirmée.
+
+3.5. Conséquence sur la caisse
+La règle est confirmée :
+
+Un paiement Mobile Money ne modifie jamais le solde physique du tiroir-caisse.
+
+Il peut être rattaché à un poste ou guichet pour sa traçabilité, sans être artificiellement considéré comme une entrée d'espèces.
+
+Décision : Cycle G validable après séparation des états de synchronisation et de vérification financière.
+
+4. Synthèse des corrections de l'audit
+Cycle	Élément examiné	Décision
+D	Annulation de créance	Conforme
+D	Contrepassation et création de crédit	Conforme, avec traçabilité
+D	Remboursement automatique	Refusé
+D	Historique des échéances soldées	À préserver intégralement
+E	Remboursement multi-sources	Conforme
+E	Mandat par source de crédit	Obligatoire lorsque le bénéficiaire diffère du payeur concerné
+E	Réservations centrales	Conforme
+G	Déclaration hors ligne	Conforme
+G	Séparation synchronisation/vérification	Obligatoire
+G	Affectation avant confirmation	Provisoire uniquement
+G	Paiement rejeté	Historique conservé, affectation neutralisée
+G	Impact sur caisse physique	Aucun
+5. Règles transversales supplémentaires proposées
+Je propose d'intégrer les six règles suivantes au catalogue d'audit du Domaine 4.
+
+Code	Règle
+AUD-GLOBAL-003	Une contrepassation d'affectation ne constitue jamais, à elle seule, un remboursement physique.
+AUD-GLOBAL-004	L'absence de dette ne déclenche pas automatiquement un remboursement d'un crédit disponible.
+AUD-GLOBAL-005	Tout remboursement à un bénéficiaire différent du payeur initial respecte les règles de mandat pour chaque source mobilisée.
+AUD-GLOBAL-006	Le statut de synchronisation d'une opération est indépendant de son statut financier métier.
+AUD-GLOBAL-007	Une déclaration Mobile Money non confirmée ne peut pas réduire définitivement une obligation financière.
+AUD-GLOBAL-008	Les événements rejetés ou contrepassés restent historiquement consultables.
+6. Décision sur l'étape 1 de l'audit
+Je considère que les dépendances transversales des Lots 1 à 7 sont globalement cohérentes, sous réserve de conserver les corrections ci-dessus.
+
+Les cycles D, E et G peuvent être retenus comme validés sous conditions d'intégration.
+
+Il reste toutefois à examiner les cinq autres cycles :
+
+A — Facturation normale ;
+B — Paiement anticipé et création de crédit ;
+C — Remise et bourse ;
+F — Clôture de caisse ;
+H — Relance d'un impayé.
+Je recommande de les traiter dans une analyse consolidée, puis de produire la matrice définitive des dépendances et le registre des anomalies.
+
+Nous ne devons pas encore figer le MLD global : les cinq cycles restants doivent d'abord être vérifiés. Cela évitera de découvrir une contradiction structurelle après la production du modèle relationnel définitif.
+
+ok
+Passons directement à l'analyse consolidée des cinq cycles restants : A, B, C, F et H.
+
+L'objectif est de terminer l'audit fonctionnel transversal avant de produire la matrice définitive des dépendances du Domaine 4.
+
+## 1. Rappel et contextualisation du choix
+
+L’analyse critique des cycles D, E et G démontre une exigence d'architecture de premier plan. Les corrections apportées verrouillent définitivement des zones de risque majeur :
+
+* **Cycle D** : Interdiction formelle de transformer automatiquement une contrepassation de créance en remboursement de trésorerie ; protection intangible de l'historique des échéances soldées.
+* **Cycle E** : Application stricte du mandat de restitution **source par source** de crédit, empêchant qu'un lien familial non qualifié ne serve de prétexte pour détourner des fonds versés par un tiers d'origine.
+* **Cycle G** : Dissociation indispensable entre l'**état de synchronisation technique** (*Offline-First*) et l'**état de vérification financière** (Mobile Money), garantissant qu'une simple déclaration locale non confirmée ne réduise jamais définitivement une obligation.
+
+Les six nouvelles règles transversales (AUD-GLOBAL-003 à AUD-GLOBAL-008) sont intégrées au corpus normatif du Domaine 4.
+
+Conformément à ta recommandation, nous poursuivons immédiatement l'audit en examinant les **cinq cycles restants (A, B, C, F, H)** avant de figer le MLD global.
+
+---
+
+## 2. Audit des Cinq Cycles Restants (A, B, C, F, H)
+
+### Cycle A — Facturation Normale (Lots 1, 2, 3 & 7)
+
+* **Périmètre** : Du tarif unitaire à l'émission de la créance et de son échéancier.
+* **Déroulement** :
+1. L'établissement définit un tarif de scolarité dans le catalogue (Lot 1).
+2. Une émission de facture génère la CREANCE (Lot 2) rattachée à ce tarif.
+3. Le système déploie automatiquement le plan de règlement associé via ECHEANCE_CREANCE (Lot 3).
+4. Le Lot 7 calcule instantanément le reste à payer global et par échéance sans stockage redondant.
+
+
+* **Verdict d'audit** : **Conforme.** Le flux nominal est parfaitement intègre et sert de socle à tous les autres cycles.
+
+### Cycle B — Paiement Anticipé et Création de Crédit (Lots 2, 3, 4 & 6)
+
+* **Périmètre** : Gestion d'un encaissement supérieur aux échéances exigibles.
+* **Déroulement** :
+1. Un parent verse 150 000 FCFA alors que le reste à payer immédiat est de 100 000 FCFA.
+2. Les échéances actives sont totalement soldées via AFFECTATION_REGLEMENT (Lot 4).
+3. L'excédent de 50 000 FCFA ne se perd pas : le système génère automatiquement un mouvement de crédit positif (MOUVEMENT_CREDIT de type CREATION) rattaché au compte de l'élève.
+4. Ce crédit devient disponible pour de futurs règlements ou une demande de remboursement ultérieure (gérée selon les règles du Lot 6).
+
+
+* **Verdict d'audit** : **Conforme.** Le passage du trop-perçu en crédit disponible s'effectue sans inflation artificielle de la créance ni confusion avec un avoir.
+
+### Cycle C — Remise ou Bourse (Lots 1, 2 & 3)
+
+* **Périmètre** : Application d'une réduction institutionnelle sur une obligation financière.
+* **Déroulement** :
+1. Un élève bénéficie d'une bourse de 30% ou d'une remise sportive validée (Lot 1).
+2. Lors de l'émission, la CREANCE (Lot 2) est enregistrée directement pour son montant net après réduction (ou l'avoir/remise est appliqué en amont de l'échéancier).
+3. L'échéancier (Lot 3) est calculé sur ce montant net, évitant d'émettre une dette théorique fictive qui nécessiterait ensuite des corrections en cascade.
+
+
+* **Verdict d'audit** : **Conforme.** L'application des bourses et remises en amont de l'échéage préserve la lisibilité du reste à payer pour le Lot 7.
+
+### Cycle F — Clôture de Caisse et Rapprochement (Lots 4 & 5)
+
+* **Périmètre** : Gestion de la fin de session physique d'un guichet.
+* **Déroulement** :
+1. Le caissier ouvre sa SESSION_CAISSE (Lot 5).
+2. Il enregistre des encaissements en espèces et des règlements électroniques (Lot 4).
+3. En fin de journée, il réalise son comptage physique. Le système compare le solde théorique (fond initial + entrées espèces - sorties espèces pour remboursements physiques autorisés selon FIN-LOT6-015) avec le comptage réel.
+4. En cas d'écart, un constat d'écart est généré, puis la session est clôturée et verrouillée. Aucune modification rétroactive n'est admise.
+
+
+* **Verdict d'audit** : **Conforme.** Le respect absolu de l'immuabilité des sessions closes et l'exclusivité des sorties en espèces (REMBOURSEMENT_FONDS) garantissent l'étanchéité du Lot 5.
+
+### Cycle H — Relance d'un Impayé (Lots 3, 7 & Entités de Relance)
+
+* **Périmètre** : Processus de recouvrement et communication avec les responsables.
+* **Déroulement** :
+1. Le Lot 7 détecte dynamiquement les échéances dont la date d'exigibilité (augmentée de la tolérance) est dépassée et dont le reste à payer est positif.
+2. Un agent déclenche une relance (ex: SMS ou Appel).
+3. Le système enregistre une RELANCE_FINANCIERE avec les snapshots du destinataire (destinataire_nom_snapshot, destinataire_contact_snapshot) et rattache les échéances visées via LIGNE_RELANCE_FINANCIERE en figeant le montant_reclame à cette date précise.
+4. Si le parent règle le lendemain, l'historique de la relance demeure intact, attestant de ce qui a été demandé à l'instant $T$.
+
+
+* **Verdict d'audit** : **Conforme.** L'utilisation des snapshots et la neutralité de la relance sur les écritures financières (règle FIN-LOT7-011) sont parfaitement respectées.
+
+---
+
+## 3. Consolidation et Catalogue des Règles d'Audit (Mise à Jour)
+
+Avec l'analyse de ces cinq cycles, l'intégralité des 8 cycles fonctionnels du Domaine 4 est validée. Le registre des règles transversales d'audit s'établit désormais ainsi :
+
+| Code | Règle Transversale d'Audit | Statut |
+| --- | --- | --- |
+| **AUD-GLOBAL-001** | Aucune écriture validée ne peut être supprimée physiquement. | Validé (Lots 1-6) |
+| **AUD-GLOBAL-002** | Les soldes et indicateurs sont des calculs dynamiques et non des tables dupliquées. | Validé (Lot 7) |
+| **AUD-GLOBAL-003** | Une contrepassation d'affectation ne constitue jamais, à elle seule, un remboursement physique. | Validé (Lot 6/8) |
+| **AUD-GLOBAL-004** | L'absence de dette ne déclenche pas automatiquement un remboursement d'un crédit disponible. | Validé (Lot 8) |
+| **AUD-GLOBAL-005** | Tout remboursement à un bénéficiaire différent du payeur initial respecte les règles de mandat pour chaque source mobilisée. | Validé (Lot 6/8) |
+| **AUD-GLOBAL-006** | Le statut de synchronisation d'une opération est indépendant de son statut financier métier. | Validé (Lot 8) |
+| **AUD-GLOBAL-007** | Une déclaration Mobile Money non confirmée ne peut pas réduire définitivement une obligation financière. | Validé (Lot 8) |
+| **AUD-GLOBAL-008** | Les événements rejetés ou contrepassés restent historiquement consultables. | Validé (Lot 8) |
+
+---
+
+## 4. Prochaine Étape
+
+L'audit global des dépendances, des invariants et des huit cycles opérationnels du Domaine 4 est **totalement achevé et sans anomalie bloquante subsistante**.
+
+Sommes-nous prêts à clore l'audit du Lot 8 pour lancer la production du **MLD global définitif** et du dictionnaire consolidé de l'ensemble du Domaine 4 ?
+…
+Oui. Les huit cycles opérationnels du Domaine 4 ont maintenant été examinés. Nous pouvons clôturer l'audit fonctionnel du Lot 8 et passer à la consolidation du dictionnaire des données et du MLD global.
+
+Je recommande néanmoins de corriger quatre points avant de considérer le dossier comme définitivement stabilisé.
+
+1. Dernières corrections à intégrer
+A. Cycle A — Facturation normale
+Le flux est conforme, mais il faut rappeler que la détermination du tarif dépend du contexte pédagogique applicable à la période facturée :
+
+niveau ;
+filière ;
+classe annuelle ;
+période de validité du tarif.
+La créance doit conserver les instantanés du tarif et du contexte pédagogique utilisés lors de son émission.
+
+L'échéancier est ensuite construit sur le montant net de la créance.
+
+B. Cycle B — Paiement anticipé
+Le scénario est cohérent : 150 000 FCFA encaissés, 100 000 FCFA affectés et 50 000 FCFA transformés en crédit disponible.
+
+Il faut cependant garantir l'équation suivante :
+
+Encaissement = affectations directes + crédit créé + montant non affecté restant éventuellement disponible.
+
+Chaque partie doit être traçable. La création du crédit ne doit pas générer un deuxième encaissement.
+
+C. Cycle C — Remise et bourse
+Je valide le principe d'application de la réduction avant la création de l'échéancier.
+
+Mais il ne faut pas perdre les informations suivantes :
+
+Tarif brut initial ;
+Politique de remise ou de bourse ;
+Attribution individuelle ;
+Montant de la réduction ;
+Montant net facturé.
+Le montant net seul ne suffit pas pour justifier historiquement le montant de la créance.
+
+Cette règle est déjà compatible avec les snapshots prévus au Lot 2.
+
+D. Cycle F — Clôture de caisse
+Le cycle est conforme, avec une précision : la clôture d'une session et la résolution d'un écart sont deux opérations distinctes.
+
+Une session peut être clôturée alors qu'un rapprochement reste à traiter, conformément au Lot 5.
+
+L'écart ne doit jamais être corrigé artificiellement dans le solde théorique de la session clôturée.
+
+E. Cycle H — Relance financière
+Le scénario est cohérent.
+
+Je retiens également la simplification suivante : si toute créance positive possède au moins une échéance, les relances peuvent cibler exclusivement ECHEANCE_CREANCE. La double cible id_creance / id_echeance du Lot 7 n'est alors pas nécessaire en V1.
+
+Le montant réclamé reste un instantané historique, même si un règlement intervient ultérieurement.
+
+2. Correction du registre des règles transversales
+Attention : les codes AUD-GLOBAL-001 et AUD-GLOBAL-002 avaient déjà reçu une définition lors de notre précédent audit.
+
+Pour éviter de modifier leur signification en cours de conception, je propose de conserver leurs définitions initiales et d'ajouter les nouvelles règles avec des codes distincts.
+
+Code	Règle transversale
+AUD-GLOBAL-001	Une opération financière ne contribue qu'une seule fois aux calculs concernés.
+AUD-GLOBAL-002	Les états opérationnels et les états financiers sont distincts.
+AUD-GLOBAL-003	Une contrepassation ne constitue pas un remboursement physique.
+AUD-GLOBAL-004	L'absence de dette ne déclenche pas automatiquement un remboursement.
+AUD-GLOBAL-005	Le mandat est vérifié source de crédit par source de crédit.
+AUD-GLOBAL-006	Synchronisation technique et état financier métier sont indépendants.
+AUD-GLOBAL-007	Une déclaration Mobile Money non confirmée ne réduit pas définitivement une dette.
+AUD-GLOBAL-008	Les événements rejetés ou contrepassés restent consultables.
+AUD-GLOBAL-009	Toute opération financière validée conserve son historique.
+AUD-GLOBAL-010	Les soldes et indicateurs sont calculés à partir des opérations sources, sans duplication financière.
+3. Bilan définitif de l'audit des huit cycles
+Cycle	Fonction	Résultat
+A	Facturation normale	Conforme
+B	Paiement anticipé et création de crédit	Conforme
+C	Remise et bourse	Conforme
+D	Annulation de créance	Conforme après corrections intégrées
+E	Remboursement multi-sources	Conforme après correction du mandat
+F	Clôture de caisse	Conforme
+G	Mobile Money hors ligne	Conforme après séparation des états
+H	Relance financière	Conforme
+Conclusion : aucun défaut architectural bloquant n'a été identifié dans les huit cycles.
+
+Je considère donc l'audit fonctionnel transversal du Lot 8 comme achevé, sous réserve d'intégrer les corrections consignées ci-dessus.
+
+4. Passage au MLD global du Domaine 4
+Nous pouvons maintenant préparer le modèle relationnel consolidé.
+
+Je recommande de procéder dans cet ordre :
+
+Étape	Travail	Résultat attendu
+1	Consolidation des dictionnaires des Lots 1 à 7	Dictionnaire global harmonisé
+2	Harmonisation des identifiants et clés étrangères	Référentiel relationnel cohérent
+3	Consolidation des entités et associations	MLD global V0.1
+4	Audit des cardinalités et contraintes	MLD global corrigé
+5	Vérification des contraintes Offline-First	MLD compatible avec la synchronisation
+6	Validation finale	MLD global V1.0
+Une précaution méthodologique : les Lots 1 à 7 n'ont pas tous encore fait l'objet d'un dictionnaire détaillé et d'un MLD consolidé. Il faudra donc les formaliser avant de pouvoir déclarer le MLD global définitif.
+
+Nous ne produirons toujours pas de SQL à cette étape.
+
+Décision proposée
+Lot 8 : audit fonctionnel transversal achevé.
+
+Prochaine étape : consolidation du dictionnaire des données et construction du MLD global V0.1 du Domaine 4.
+
+Nous avançons désormais vers la stabilisation structurelle de l'ensemble du domaine financier, sans rouvrir inutilement les décisions métier déjà validées.
+
+go
+Nous lançons donc officiellement la consolidation du dictionnaire des données et la construction du MLD global V0.1 du Domaine 4 — Gestion financière et comptable.
+
+Je vais procéder par consolidation, et non par reconstruction : les décisions métier des Lots 1 à 6 restent nos références. Le Lot 7 est intégré comme couche de restitution et de suivi.
+
+DOMAINE 4 — MLD GLOBAL V0.1
+Étape 1 — Inventaire consolidé des entités
+L'objectif de cette première étape est de réunir toutes les entités des sept lots, d'identifier leurs dépendances et de préparer leur harmonisation relationnelle.
+
+1.1. Lot 1 — Catalogue des frais et tarification
+Entité	Fonction
+TYPE_FRAIS	Référentiel des catégories de frais
+PERIODICITE	Référentiel des périodicités tarifaires
+TARIF	Définition des tarifs applicables
+POLITIQUE_REMISE	Définition des politiques de réduction
+ATTRIBUTION_REMISE	Attribution individuelle d'une remise ou bourse
+Dépendances principales :
+
+TARIF → TYPE_FRAIS
+TARIF → PERIODICITE
+TARIF → ANNEE_SCOLAIRE
+TARIF → NIVEAU, FILIERE, CLASSE_ANNUELLE selon sa portée
+ATTRIBUTION_REMISE → POLITIQUE_REMISE
+ATTRIBUTION_REMISE → ELEVE
+ATTRIBUTION_REMISE → ANNEE_SCOLAIRE
+1.2. Lot 2 — Facturation et créances
+Entité	Fonction
+PERIODE_FACTURATION	Définition des périodes auxquelles les frais se rapportent
+CAMPAGNE_FACTURATION	Traçabilité des opérations collectives de facturation
+CREANCE	Enregistrement d'une obligation financière
+Dépendances principales :
+
+CREANCE → ELEVE
+CREANCE → ANNEE_SCOLAIRE
+CREANCE → TYPE_FRAIS
+CREANCE → TARIF
+CREANCE → PERIODE_FACTURATION
+CREANCE → CAMPAGNE_FACTURATION, facultatif selon l'origine
+CREANCE → ATTRIBUTION_REMISE, lorsque la remise est appliquée
+La créance conserve les instantanés du tarif, du contexte pédagogique et de la réduction appliquée.
+
+1.3. Lot 3 — Échéanciers et règles de règlement
+Entité	Fonction
+MODELE_ECHEANCIER	Référentiel des modèles d'échéanciers
+VERSION_MODELE_ECHEANCIER	Versionnement des modèles
+LIGNE_MODELE_ECHEANCIER	Définition des fractions et règles des échéances
+PLAN_REGLEMENT_CREANCE	Application d'un plan à une créance
+ECHEANCE_CREANCE	Échéances effectivement dues
+REAMENAGEMENT_ECHEANCIER	Historique des réaménagements
+EVENEMENT_ECHEANCE	Historique des événements affectant les échéances
+Dépendances principales :
+
+VERSION_MODELE_ECHEANCIER → MODELE_ECHEANCIER
+LIGNE_MODELE_ECHEANCIER → VERSION_MODELE_ECHEANCIER
+PLAN_REGLEMENT_CREANCE → CREANCE
+PLAN_REGLEMENT_CREANCE → VERSION_MODELE_ECHEANCIER
+ECHEANCE_CREANCE → PLAN_REGLEMENT_CREANCE
+REAMENAGEMENT_ECHEANCIER → PLAN_REGLEMENT_CREANCE
+EVENEMENT_ECHEANCE → ECHEANCE_CREANCE
+1.4. Lot 4 — Encaissements et affectations
+Entité	Fonction
+ENCAISSEMENT	Enregistrement d'une entrée réelle de fonds
+AFFECTATION_REGLEMENT	Affectation d'un règlement à une obligation
+MOUVEMENT_CREDIT	Historique des mouvements de crédit
+TRANSACTION_MOBILE_MONEY	Suivi des transactions électroniques
+Référentiels des moyens de paiement	Identification des modes de règlement et opérateurs
+Dépendances principales :
+
+ENCAISSEMENT → ELEVE
+ENCAISSEMENT → SESSION_CAISSE, selon le moyen et le contexte
+AFFECTATION_REGLEMENT → ENCAISSEMENT ou crédit utilisé
+AFFECTATION_REGLEMENT → CREANCE ou ECHEANCE_CREANCE, selon la cible retenue
+MOUVEMENT_CREDIT → source financière d'origine
+TRANSACTION_MOBILE_MONEY → ENCAISSEMENT ou déclaration financière associée
+Une vigilance particulière sera appliquée à la relation entre AFFECTATION_REGLEMENT, MOUVEMENT_CREDIT et ENCAISSEMENT, afin qu'une utilisation de crédit ne soit jamais interprétée comme un nouvel encaissement.
+
+1.5. Lot 5 — Sessions de caisse et rapprochements
+Entité	Fonction
+POSTE_CAISSE	Référentiel des postes de caisse
+APPAREIL	Identification des appareils
+SESSION_CAISSE	Ouverture et clôture d'une session
+MOUVEMENT_CAISSE	Mouvements physiques hors encaissements déjà comptabilisés
+CLOTURE_CAISSE	Enregistrement de la clôture
+DETAIL_COMPTAGE_CAISSE	Détail du comptage physique
+TRANSMISSION_FONDS	Traçabilité des transferts de fonds
+RAPPROCHEMENT_CAISSE	Traitement des écarts
+JUSTIFICATION_ECART_CAISSE	Justifications des différences constatées
+1.6. Lot 6 — Annulations, avoirs et remboursements
+Entité	Fonction
+AVOIR_FINANCIER	Enregistrement d'un avoir
+LIGNE_AVOIR	Détail de l'imputation ou de la transformation de l'avoir
+ANNULATION_ENCAISSEMENT	Annulation d'un encaissement
+CONTREPASSATION_AFFECTATION	Neutralisation d'une affectation existante
+REMBOURSEMENT_FONDS	Enregistrement d'un remboursement exécuté
+LIGNE_REMBOURSEMENT_CREDIT	Ventilation du remboursement par source
+MANDAT_RESTITUTION	Autorisation de restitution à un tiers
+RESERVATION_CREDIT	Réservation temporaire ou validée d'un crédit
+Le Lot 6 étend également les mécanismes de crédit et d'affectation définis au Lot 4.
+
+1.7. Lot 7 — Soldes, impayés et reporting
+Entité	Fonction
+RELANCE_FINANCIERE	Historique des actions de relance
+LIGNE_RELANCE_FINANCIERE	Échéances ciblées par une relance
+PARAMETRAGE_BALANCE_AGEE	Configuration versionnée des tranches de retard
+Les soldes, impayés, balances âgées et états financiers restent calculés dynamiquement.
+
+2. Première lecture des dépendances globales
+Voici le graphe fonctionnel simplifié :
+
+LOT 1 — TARIFICATION
+       │
+       ▼
+LOT 2 — CRÉANCES
+       │
+       ▼
+LOT 3 — ÉCHÉANCIERS
+       │
+       ▼
+LOT 4 — ENCAISSEMENTS / AFFECTATIONS
+       │
+       ├─────────────────┐
+       ▼                 ▼
+LOT 5 — CAISSE       LOT 6 — CORRECTIONS
+       │                 │
+       └────────┬────────┘
+                ▼
+         LOT 7 — REPORTING
+Ce schéma représente les dépendances fonctionnelles, pas toutes les relations physiques du MLD.
+
+Par exemple :
+
+Le Lot 6 peut agir sur les encaissements du Lot 4.
+Le Lot 6 peut produire des conséquences sur les échéances du Lot 3.
+Le Lot 5 reçoit les conséquences physiques des remboursements en espèces du Lot 6.
+Le Lot 7 agrège les informations des Lots 2 à 6.
+3. Harmonisation des conventions relationnelles
+Avant de construire les relations détaillées, je propose d'adopter les conventions suivantes pour tout le Domaine 4.
+
+Élément	Convention proposée
+Identifiants	UUID
+Clés primaires	id_nom_entite
+Clés étrangères	Même nom que la clé primaire référencée
+Montants	Entiers FCFA
+Dates d'opération	Date métier distincte de la date d'enregistrement
+Horodatages	Date et heure avec gestion cohérente du fuseau
+Historisation	Pas de suppression physique des opérations financières validées
+États	Codes stables, indépendants des libellés affichés
+Référentiels	Codes uniques et stables
+Relations temporelles	Intervalles semi-ouverts [date_debut, date_fin)
+Synchronisation	État technique séparé de l'état métier
+Les attributs d'audit devront également être harmonisés :
+
+date_creation
+cree_par
+date_modification, lorsque la modification est autorisée
+modifie_par, lorsque nécessaire
+date_synchronisation_centrale, pour les événements concernés
+Il faudra toutefois éviter d'ajouter mécaniquement tous ces attributs à chaque table : les événements immuables, les référentiels et les configurations n'ont pas tous le même cycle de vie.
+
+4. Premier audit de cohérence : les points à traiter dans le MLD
+L'inventaire fait apparaître six zones qui méritent une attention particulière.
+
+Référence	Point à consolider	Importance
+MLD-001	Relation entre CREANCE, PLAN_REGLEMENT_CREANCE et ECHEANCE_CREANCE	Critique
+MLD-002	Relation entre ENCAISSEMENT, AFFECTATION_REGLEMENT et MOUVEMENT_CREDIT	Critique
+MLD-003	Unicité de la sortie physique entre remboursement et mouvement de caisse	Critique
+MLD-004	Articulation entre annulation de créance, avoir et crédit disponible	Critique
+MLD-005	Relation entre réservation de crédit et ligne de remboursement	Élevée
+MLD-006	Historisation des relances et rattachement aux échéances	Élevée
+Ces points ne signifient pas que les Lots précédents sont incorrects. Ils indiquent les endroits où leurs relations doivent être exprimées sans ambiguïté dans le modèle global.
+
+5. Découpage de la suite
+Nous allons maintenant produire le MLD global par ensembles cohérents.
+
+Ensemble	Contenu
+A	Tarification et politiques de remise
+B	Créances et facturation
+C	Modèles d'échéanciers et échéances
+D	Encaissements, affectations et crédits
+E	Sessions de caisse et trésorerie physique
+F	Annulations, avoirs et remboursements
+G	Relances et paramétrages de reporting
+H	Contraintes transversales, unicités et intégrité
+Pour chaque ensemble, je présenterai :
+
+Le dictionnaire consolidé des attributs ;
+Les PK et FK ;
+Les cardinalités ;
+Les contraintes d'unicité ;
+Les contraintes métier et temporelles ;
+Les dépendances avec les autres ensembles ;
+Les éventuelles anomalies à résoudre.
+Important : cet inventaire est le point de départ V0.1, pas encore le MLD définitif. Les noms et structures des entités du Lot 4, notamment, devront être rapprochés de leur dictionnaire détaillé avant de figer les relations.
+
+Étape suivante : Ensemble A — Tarification et politiques de remise
+Nous commençons par consolider les cinq entités du Lot 1, puis nous vérifions leurs relations exactes avec les référentiels du Domaine 1 et les futures créances du Lot 2.
+
+Nous avancerons ensuite ensemble par ensemble jusqu'au MLD global V1.0, sans produire de SQL prématurément.
+
+go
+DOMAINE 4 — MLD GLOBAL V0.1
+Ensemble A — Tarification et politiques de remise
+Nous commençons par consolider les cinq entités du Lot 1, sans modifier les décisions métier déjà validées.
+
+L'objectif est de définir leur structure relationnelle, leurs clés, leurs relations et leurs contraintes, puis de préparer leur raccordement aux créances du Lot 2.
+
+1. Entité TYPE_FRAIS
+Rôle
+Référentiel des catégories de frais facturables par l'établissement.
+
+Dictionnaire des attributs
+Attribut	Type logique	Obligatoire	Contraintes
+id_type_frais	UUID	Oui	PK
+code_type_frais	Texte	Oui	UNIQUE, stable et non réutilisable
+libelle	Texte	Oui	—
+description	Texte	Non	—
+est_actif	Booléen	Oui	Défaut TRUE
+Contraintes métier
+Un code identifie définitivement un type de frais dans l'établissement.
+Un type de frais utilisé dans une créance ne doit pas être supprimé physiquement.
+La désactivation empêche son utilisation dans les nouvelles tarifications, sans invalider les anciennes créances.
+Aucun attribut nature_frais supplémentaire n'est nécessaire : la distinction métier ne doit pas être réintroduite sans besoin fonctionnel démontré.
+Relations
+TYPE_FRAIS (1) ───────── (0,N) TARIF
+TYPE_FRAIS (1) ───────── (0,N) POLITIQUE_REMISE
+TYPE_FRAIS (1) ───────── (0,N) CREANCE
+La dernière relation sera matérialisée dans l'Ensemble B.
+
+2. Entité PERIODICITE
+Rôle
+Définir la périodicité de référence utilisée dans un tarif.
+
+Dictionnaire des attributs
+Attribut	Type logique	Obligatoire	Contraintes
+id_periodicite	UUID	Oui	PK
+code_periodicite	Texte	Oui	UNIQUE, stable
+libelle	Texte	Oui	—
+Référentiel initial
+Code	Libellé
+PONCTUELLE	Ponctuelle
+ANNUELLE	Annuelle
+SEMESTRIELLE	Semestrielle
+TRIMESTRIELLE	Trimestrielle
+MENSUELLE	Mensuelle
+Contraintes métier
+La périodicité indique la fréquence de référence du tarif.
+
+Elle ne détermine pas automatiquement le nombre d'échéances.
+
+Exemple :
+
+Tarif annuel : 240 000 FCFA.
+Périodicité : ANNUELLE.
+Plan de règlement : 3 échéances de 80 000 FCFA.
+La périodicité et le nombre d'échéances restent donc deux concepts indépendants.
+
+3. Entité TARIF
+Rôle
+Définir le montant applicable à un type de frais pour une année scolaire et une portée pédagogique donnée.
+
+C'est l'entité la plus structurante de cet ensemble.
+
+Dictionnaire des attributs
+Attribut	Type logique	Obligatoire	Contraintes
+id_tarif	UUID	Oui	PK
+id_type_frais	UUID	Oui	FK → TYPE_FRAIS
+id_periodicite	UUID	Oui	FK → PERIODICITE
+id_annee_scolaire	UUID	Oui	FK → ANNEE_SCOLAIRE
+type_portee	Code	Oui	Contrôle des combinaisons autorisées
+id_niveau	UUID	Selon portée	FK → NIVEAU
+id_filiere	UUID	Selon portée	FK → FILIERE
+id_classe_annuelle	UUID	Selon portée	FK → CLASSE_ANNUELLE
+montant_brut	Entier FCFA	Oui	≥ 0
+date_debut_effet	Date	Oui	Début de validité inclus
+date_fin_effet	Date	Non	Fin de validité exclue
+3.1. Gestion de la portée tarifaire
+Les cinq combinaisons autorisées sont :
+
+type_portee	Niveau	Filière	Classe annuelle	Signification
+ETABLISSEMENT	NULL	NULL	NULL	Tarif général
+NIVEAU	Obligatoire	NULL	NULL	Tarif d'un niveau
+FILIERE	NULL	Obligatoire	NULL	Tarif d'une filière
+NIVEAU_FILIERE	Obligatoire	Obligatoire	NULL	Tarif combiné
+CLASSE	NULL	NULL	Obligatoire	Tarif d'une classe annuelle
+Les combinaisons non prévues sont interdites.
+
+Important : la portée CLASSE fait référence à CLASSE_ANNUELLE, et non à une classe générique indépendante de l'année scolaire.
+
+3.2. Contraintes temporelles
+Chaque tarif possède une période de validité semi-ouverte :
+
+[date_debut_effet, date_fin_effet)
+
+Par conséquent :
+
+La date de début est incluse.
+La date de fin est exclue.
+Une date de fin NULL indique une validité sans date de fin explicitement définie.
+Si elle existe, la date de fin doit être strictement postérieure à la date de début.
+La période doit respecter les limites de l'année scolaire concernée.
+3.3. Résolution des tarifs
+Lorsqu'une créance doit être générée, le système recherche le tarif correspondant au contexte pédagogique applicable.
+
+Ordre de spécificité :
+
+Classe annuelle.
+Niveau + filière.
+Niveau.
+Filière.
+Établissement.
+Un tarif plus spécifique remplace le tarif général : les montants ne s'additionnent jamais.
+
+Si plusieurs tarifs concurrents présentent la même portée et couvrent la date recherchée, la résolution est bloquée pour ambiguïté.
+
+3.4. Contraintes d'intégrité
+Le type de frais doit exister.
+La périodicité doit exister.
+L'année scolaire doit exister.
+Une classe annuelle doit appartenir à l'année scolaire du tarif.
+Le niveau et la filière doivent correspondre aux référentiels du Domaine 1.
+Les intervalles de validité ne doivent pas se chevaucher pour un même type de frais, une même année et une même portée.
+Un tarif utilisé pour générer une créance ne doit pas être modifié rétroactivement.
+Une correction tarifaire doit passer par une nouvelle configuration ou une nouvelle version, selon les règles du Lot 1.
+
+4. Entité POLITIQUE_REMISE
+Rôle
+Définir les règles institutionnelles permettant d'accorder une réduction.
+
+Dictionnaire des attributs
+Attribut	Type logique	Obligatoire	Contraintes
+id_politique_remise	UUID	Oui	PK
+code_politique	Texte	Oui	UNIQUE, stable
+libelle	Texte	Oui	—
+nature_remise	Code	Oui	BOURSE, FRATRIE, SOCIALE, EXCEPTIONNELLE
+forme_remise	Code	Oui	MONTANT_FIXE ou POURCENTAGE
+valeur_remise	Numérique	Oui	Selon la forme
+id_type_frais	UUID	Non	FK → TYPE_FRAIS
+description	Texte	Non	—
+est_active	Booléen	Oui	Défaut TRUE
+date_debut_validite	Date	Non	—
+date_fin_validite	Date	Non	—
+Contraintes métier
+Portée du type de frais :
+
+id_type_frais renseigné : la politique ne concerne que ce type de frais.
+id_type_frais NULL : la politique peut s'appliquer à tous les types de frais.
+Forme de réduction :
+
+MONTANT_FIXE : valeur exprimée en FCFA.
+POURCENTAGE : valeur comprise entre 0 et 100.
+Les réductions ne sont pas automatiquement cumulables.
+
+Une politique active ne signifie pas qu'un élève bénéficie automatiquement de la réduction : il faut une attribution individuelle.
+
+5. Entité ATTRIBUTION_REMISE
+Rôle
+Enregistrer l'attribution effective d'une politique de remise à un élève.
+
+Cette entité est essentielle pour distinguer :
+
+Une politique disponible dans l'établissement.
+Une remise effectivement accordée à un élève.
+Une remise réellement consommée dans une créance.
+Dictionnaire des attributs
+Attribut	Type logique	Obligatoire	Contraintes
+id_attribution_remise	UUID	Oui	PK
+id_politique_remise	UUID	Oui	FK → POLITIQUE_REMISE
+id_eleve	UUID	Oui	FK → ELEVE
+id_annee_scolaire	UUID	Oui	FK → ANNEE_SCOLAIRE
+motif_specifique	Texte	Oui	Justification individuelle
+rang_fratrie	Entier	Non	Selon la politique
+date_debut_effet	Date	Oui	Début inclus
+date_fin_effet	Date	Non	Fin exclue
+attribue_par	UUID logique	Oui	Auteur de l'attribution
+autorise_par	UUID logique	Selon règle	Autorisateur
+date_attribution	Horodatage	Oui	Date de décision
+date_annulation	Horodatage	Non	Annulation éventuelle
+motif_annulation	Texte	Non	Obligatoire si annulée
+Contraintes métier
+Une attribution concerne un seul élève.
+Une attribution concerne une seule année scolaire.
+Une attribution référence une politique existante.
+La période d'attribution doit être cohérente avec la validité de la politique.
+Une attribution annulée reste historiquement consultable.
+Une attribution ne modifie jamais rétroactivement une créance déjà émise.
+Plusieurs politiques peuvent être attribuées au même élève.
+Lors de la génération d'une créance, une seule remise est retenue selon la sélection autorisée.
+Le système ne cumule pas automatiquement plusieurs remises éligibles.
+Le montant effectivement appliqué est enregistré dans la créance, avec les informations de la politique et de l'attribution utilisées.
+
+Ainsi, une modification ultérieure de la politique ne réécrit pas l'historique financier.
+
+6. Relations et cardinalités consolidées
+Entité source	Relation	Entité cible
+TYPE_FRAIS	1,N	TARIF
+PERIODICITE	1,N	TARIF
+ANNEE_SCOLAIRE	1,N	TARIF
+NIVEAU	1,N	TARIF
+FILIERE	1,N	TARIF
+CLASSE_ANNUELLE	1,N	TARIF
+TYPE_FRAIS	1,N	POLITIQUE_REMISE
+POLITIQUE_REMISE	1,N	ATTRIBUTION_REMISE
+ELEVE	1,N	ATTRIBUTION_REMISE
+ANNEE_SCOLAIRE	1,N	ATTRIBUTION_REMISE
+Les relations avec CREANCE seront précisées dans l'Ensemble B.
+
+7. Contraintes techniques à prévoir
+Certaines contraintes nécessiteront davantage qu'une simple clé étrangère.
+
+Code	Contrainte	Traitement
+A-001	Combinaisons autorisées de portée tarifaire	CHECK
+A-002	Montant tarifaire positif ou nul	CHECK
+A-003	Cohérence des dates de validité	CHECK
+A-004	Classe annuelle appartenant à la même année scolaire	FK composite
+A-005	Absence de chevauchement tarifaire de même portée	Contrainte temporelle ou déclencheur transactionnel
+A-006	Cohérence des références niveau/filière	FK et validation métier
+A-007	Valeur de réduction cohérente avec sa forme	CHECK
+A-008	Annulation d'attribution correctement renseignée	CHECK
+A-009	Absence de modification rétroactive d'un tarif consommé	Contrôle transactionnel
+A-010	Absence de cumul automatique des remises	Service métier et contrôle transactionnel
+Pour PostgreSQL, les contraintes temporelles pourront notamment utiliser des contraintes d'exclusion avec les extensions adaptées.
+
+Pour SQLite, elles devront être garanties par des transactions et des déclencheurs appropriés.
+
+Les règles métier ne doivent pas dépendre uniquement de l'interface utilisateur.
+
+8. Points d'intégration avec les autres domaines
+L'Ensemble A dépend principalement de trois éléments extérieurs :
+
+Référentiel	Domaine	Utilisation
+ANNEE_SCOLAIRE	Domaine 1	Délimitation des tarifs et attributions
+NIVEAU	Domaine 1	Portée tarifaire
+FILIERE	Domaine 1	Portée tarifaire
+CLASSE_ANNUELLE	Domaine 3	Tarification spécifique à une classe
+ELEVE	Domaine 2	Bénéficiaire d'une remise
+Nous ne recréons aucune de ces entités dans le Domaine 4.
+
+Leurs identifiants sont simplement référencés.
+
+9. Verdict de consolidation de l'Ensemble A
+Les cinq entités sont suffisamment définies pour constituer la première partie du MLD global.
+
+Structure retenue :
+
+TYPE_FRAIS
+    │
+    ├──────── TARIF ──────── PERIODICITE
+    │           │
+    │           ├──────── ANNEE_SCOLAIRE
+    │           ├──────── NIVEAU
+    │           ├──────── FILIERE
+    │           └──────── CLASSE_ANNUELLE
+    │
+    └──────── POLITIQUE_REMISE
+                    │
+                    ▼
+             ATTRIBUTION_REMISE
+                    │
+                    ├──────── ELEVE
+                    └──────── ANNEE_SCOLAIRE
+Résultat : Ensemble A consolidé en MLD V0.1.
+
+Les règles métier du Lot 1 sont préservées. Les détails techniques seront confirmés lors de l'audit global des contraintes et de la compatibilité SQLite/PostgreSQL.
+
+10. Suite : Ensemble B — Créances et facturation
+Nous allons maintenant aborder le cœur du système financier : CREANCE.
+
+C'est ici que nous devons notamment garantir :
+
+La traçabilité de l'origine de chaque créance.
+La conservation des snapshots tarifaires et pédagogiques.
+L'intégration correcte des remises.
+L'identification des périodes facturées.
+L'idempotence de la génération des créances.
+La cohérence entre créances annulées, échéanciers et opérations financières historiques.
+Prochaine étape : consolidation complète de PERIODE_FACTURATION, CAMPAGNE_FACTURATION et CREANCE.
+
+
+Fenêtre de contexte pleine
+Démarrez un nouveau chat avec un résumé automatique de cette conversation, ou passez à une offre supérieure pour continuer ici avec davantage de contexte disponible dans chaque chat.
+
+

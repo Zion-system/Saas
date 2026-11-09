@@ -4,6 +4,9 @@ import AppRouter from "./app/router/AppRouter";
 import { Button } from "./components/ui/Button";
 import { Carte } from "./components/ui/Carte";
 import { NOM_ECOLE } from "./config/ecole";
+import { recupererSession } from "./services/compte/compte.service";
+import { executerRequete, executerTransaction } from "./database/local/sqlite.client";
+import { creerServiceEtablissements } from "./services/organisation-scolaire/etablissements.service";
 
 type EtatInitialisation = "initialisation" | "prete" | "erreur";
 
@@ -24,8 +27,34 @@ function App() {
     let actif = true;
 
     initialiserBaseLocale()
-      .then(() => {
-        if (actif) setEtat("prete");
+      .then(async () => {
+        if (!actif) return;
+
+        // Logique de reprise après initialisation de la base
+        const session = recupererSession();
+        
+        if (session) {
+          // Session active : vérifier si une école existe
+          try {
+            const database = {
+              query: executerRequete,
+              transaction: executerTransaction,
+            };
+            const serviceEtablissements = creerServiceEtablissements(database);
+            const etablissements = await serviceEtablissements.lister();
+            
+            if (etablissements.length === 0) {
+              // École non configurée : rediriger vers l'étape École
+              window.location.href = "/onboarding/ecole";
+            }
+            // Sinon : aller au tableau de bord (route par défaut)
+          } catch (err) {
+            console.warn("Erreur lors de la vérification de l'école:", err);
+          }
+        }
+        // Sinon : pas de session, rester sur la page par défaut (Bienvenue)
+
+        setEtat("prete");
       })
       .catch((error: unknown) => {
         if (!actif) return;

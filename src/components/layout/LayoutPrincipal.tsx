@@ -20,6 +20,7 @@ import {
 } from "react-icons/fa";
 import { NOM_ECOLE } from "../../config/ecole";
 import { Badge } from "../ui/Badge";
+import { deconnecter } from "../../services/compte/compte.service";
 
 interface EntreeNavigation {
   libelle: string;
@@ -132,9 +133,11 @@ function ContenuNavigation({ onNaviguer }: { onNaviguer?: () => void }) {
 
         <button
           type="button"
-          disabled
-          title="Le module d'authentification arrive prochainement"
-          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-rose-100/75 transition-colors hover:bg-rose-500/10 hover:text-rose-100 disabled:opacity-50"
+          onClick={() => {
+            deconnecter();
+            window.location.href = "/onboarding/connexion";
+          }}
+          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-rose-100/75 transition-colors hover:bg-rose-500/10 hover:text-rose-100"
         >
           <FaSignOutAlt className="h-4 w-4" aria-hidden="true" />
           Se déconnecter

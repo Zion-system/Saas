@@ -20,6 +20,7 @@ import inscriptionsAffectations from "./013-inscriptions-affectations";
 import correction005EcheanciersReglements from "./014-correction-005-echeanciers-reglements";
 import correction006EncaissementsCredits from "./015-correction-006-encaissements-credits";
 import correction007GestionCaisse from "./016-correction-007-gestion-caisse";
+import compteUtilisateur from "./017-compte-utilisateur";
 
 /**
  * Registre chronologique des migrations SQLite.
@@ -46,4 +47,5 @@ export const migrations: Migration[] = [
   correction005EcheanciersReglements,
   correction006EncaissementsCredits,
   correction007GestionCaisse,
+  compteUtilisateur,
 ];
