@@ -1,17 +1,38 @@
 import { useId, useState, type FormEvent, type ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
-import { creerServiceCompte } from "../../services/compte/compte.service";
-import { executerRequete, executerTransaction } from "../../database/local/sqlite.client";
-import type { DonneesCreationCompte, DonneesConnexion } from "../../services/compte/compte.service";
+import { FcGoogle } from "react-icons/fc";
+import { FiEye, FiEyeOff } from "react-icons/fi";
 
 export type ModeAuth = "connexion" | "inscription";
+
+export interface DonneesConnexion {
+  email: string;
+  motDePasse: string;
+}
+
+export interface DonneesInscription extends DonneesConnexion {
+  prenom: string;
+  nom: string;
+  telephone: string;
+}
+
+interface ConnexionProps {
+  modeInitial?: ModeAuth;
+  /** Appelé à l'envoi du formulaire de connexion. Peut lever une erreur : son message sera affiché. */
+  onConnexion?: (donnees: DonneesConnexion) => Promise<void> | void;
+  /** Appelé à l'envoi du formulaire d'inscription. Peut lever une erreur : son message sera affiché. */
+  onInscription?: (donnees: DonneesInscription) => Promise<void> | void;
+  /** Appelé au clic sur « S'inscrire / Se connecter avec Google ». */
+  onGoogle?: (mode: ModeAuth) => Promise<void> | void;
+  /** Nom affiché dans le pied de page du panneau gauche. */
+  nomProduit?: string;
+}
 
 const LONGUEUR_MIN_MOT_DE_PASSE = 10;
 
 const STATISTIQUES = [
   { valeur: "500+", libelle: "élèves gérés" },
   { valeur: "12", libelle: "établissements" },
-  { valeur: "Congo", libelle: "Brazzaville & régions" },
+  { valeur: "Mali", libelle: "Bamako & régions" },
 ];
 
 const CLASSE_CHAMP =
@@ -75,24 +96,75 @@ function ChampMotDePasse({
         className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-600 transition-colors hover:text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1d5c46]/60"
       >
         {visible ? (
-          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-          </svg>
+          <FiEyeOff className="h-5 w-5" aria-hidden="true" />
         ) : (
-          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-          </svg>
+          <FiEye className="h-5 w-5" aria-hidden="true" />
         )}
       </button>
     </div>
   );
 }
 
+function SeparateurOu() {
+  return (
+    <div className="flex items-center gap-4" role="separator" aria-label="ou">
+      <span className="h-px flex-1 bg-stone-300" />
+      <span className="text-xs text-stone-400">ou</span>
+      <span className="h-px flex-1 bg-stone-300" />
+    </div>
+  );
+}
+
+function BoutonGoogle({
+  libelle,
+  onClick,
+}: {
+  libelle: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex h-14 w-full items-center justify-center gap-3 rounded-xl bg-[#e9e5df] text-[15px] font-semibold text-stone-900 ring-1 ring-black/[0.04] transition hover:bg-[#e0dbd3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1d5c46]/60"
+    >
+      <FcGoogle className="h-5 w-5" aria-hidden="true" />
+      {libelle}
+    </button>
+  );
+}
+
+function PiedFormulaire({
+  question,
+  action,
+  onClick,
+}: {
+  question: string;
+  action: string;
+  onClick: () => void;
+}) {
+  return (
+    <p className="pt-2 text-center text-sm text-stone-500">
+      {question}{" "}
+      <button
+        type="button"
+        onClick={onClick}
+        className="font-semibold text-[#1d5c46] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1d5c46]/60"
+      >
+        {action}
+      </button>
+    </p>
+  );
+}
+
 function FormulaireInscription({
   onSoumettre,
+  onGoogle,
+  onChangerMode,
 }: {
-  onSoumettre: (d: DonneesCreationCompte) => Promise<void>;
+  onSoumettre: (d: DonneesInscription) => Promise<void>;
+  onGoogle: () => Promise<void>;
+  onChangerMode: () => void;
 }) {
   const uid = useId();
   const [prenom, setPrenom] = useState("");
@@ -116,7 +188,7 @@ function FormulaireInscription({
 
     setEnvoi(true);
     try {
-      await onSoumettre({ prenom, nom, telephone, email, mot_de_passe: motDePasse });
+      await onSoumettre({ prenom, nom, telephone, email, motDePasse });
     } catch (error: unknown) {
       setErreur(
         error instanceof Error
@@ -171,7 +243,7 @@ function FormulaireInscription({
             type="tel"
             value={telephone}
             onChange={(e) => setTelephone(e.target.value)}
-            placeholder="+242"
+            placeholder="+223"
             autoComplete="tel"
             required
             className={CLASSE_CHAMP}
@@ -224,6 +296,28 @@ function FormulaireInscription({
         >
           {envoi ? "Création en cours…" : "Créer mon compte"}
         </button>
+
+        <SeparateurOu />
+
+        <BoutonGoogle
+          libelle="S'inscrire avec Google"
+          onClick={() => {
+            setErreur(null);
+            onGoogle().catch((error: unknown) =>
+              setErreur(
+                error instanceof Error
+                  ? error.message
+                  : "Inscription avec Google impossible.",
+              ),
+            );
+          }}
+        />
+
+        <PiedFormulaire
+          question="Vous avez déjà un compte ?"
+          action="Se connecter"
+          onClick={onChangerMode}
+        />
       </form>
     </>
   );
@@ -231,8 +325,12 @@ function FormulaireInscription({
 
 function FormulaireConnexion({
   onSoumettre,
+  onGoogle,
+  onChangerMode,
 }: {
   onSoumettre: (d: DonneesConnexion) => Promise<void>;
+  onGoogle: () => Promise<void>;
+  onChangerMode: () => void;
 }) {
   const uid = useId();
   const [email, setEmail] = useState("");
@@ -245,7 +343,7 @@ function FormulaireConnexion({
     setErreur(null);
     setEnvoi(true);
     try {
-      await onSoumettre({ email, mot_de_passe: motDePasse });
+      await onSoumettre({ email, motDePasse });
     } catch (error: unknown) {
       setErreur(
         error instanceof Error
@@ -305,6 +403,28 @@ function FormulaireConnexion({
         >
           {envoi ? "Connexion en cours…" : "Se connecter"}
         </button>
+
+        <SeparateurOu />
+
+        <BoutonGoogle
+          libelle="Se connecter avec Google"
+          onClick={() => {
+            setErreur(null);
+            onGoogle().catch((error: unknown) =>
+              setErreur(
+                error instanceof Error
+                  ? error.message
+                  : "Connexion avec Google impossible.",
+              ),
+            );
+          }}
+        />
+
+        <PiedFormulaire
+          question="Pas encore de compte ?"
+          action="S'inscrire"
+          onClick={onChangerMode}
+        />
       </form>
     </>
   );
@@ -314,9 +434,14 @@ function FormulaireConnexion({
  * Page d'authentification : panneau de présentation sombre à gauche,
  * onglets Connexion / Inscription et formulaire à droite.
  */
-export function Connexion() {
-  const navigate = useNavigate();
-  const [mode, setMode] = useState<ModeAuth>("inscription");
+export function Connexion({
+  modeInitial = "inscription",
+  onConnexion,
+  onInscription,
+  onGoogle,
+  nomProduit = "Walan",
+}: ConnexionProps) {
+  const [mode, setMode] = useState<ModeAuth>(modeInitial);
   const idOnglets = useId();
 
   const onglets: { cle: ModeAuth; libelle: string }[] = [
@@ -324,39 +449,18 @@ export function Connexion() {
     { cle: "inscription", libelle: "Inscription" },
   ];
 
-  const handleConnexion = async (donnees: DonneesConnexion) => {
-    const database = {
-      query: executerRequete,
-      transaction: executerTransaction,
-    };
-    const serviceCompte = creerServiceCompte(database);
-    await serviceCompte.connecter(donnees);
-    navigate("/onboarding/ecole");
-  };
-
-  const handleInscription = async (donnees: DonneesCreationCompte) => {
-    const database = {
-      query: executerRequete,
-      transaction: executerTransaction,
-    };
-    const serviceCompte = creerServiceCompte(database);
-    
-    // Vérifier si le compte existe déjà
-    const existe = await serviceCompte.existe(donnees.email);
-    if (existe) {
-      throw new Error("Un compte avec cet email existe déjà.");
-    }
-    
-    await serviceCompte.creer(donnees);
-    // Après inscription, basculer vers l'onglet connexion
-    setMode("connexion");
-  };
-
   return (
     <div className="grid min-h-screen grid-cols-1 lg:grid-cols-2">
       {/* Panneau de présentation */}
-      <aside className="hidden flex-col justify-center bg-[#1a1a1a] px-14 py-16 text-white lg:flex xl:px-24">
-        <div className="max-w-xl">
+      <aside
+        className="hidden flex-col bg-[#1a1a1a] px-14 py-10 text-white lg:flex xl:px-24"
+        style={{
+          backgroundImage:
+            "radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px)",
+          backgroundSize: "24px 24px",
+        }}
+      >
+        <div className="my-auto max-w-xl py-10">
           <p className="text-5xl font-semibold leading-[1.15] tracking-tight xl:text-6xl">
             La gestion scolaire,
             <br />
@@ -382,6 +486,10 @@ export function Connexion() {
             ))}
           </dl>
         </div>
+
+        <p className="text-xs text-white/30">
+          © {new Date().getFullYear()} {nomProduit} — Tous droits réservés
+        </p>
       </aside>
 
       {/* Panneau formulaire */}
@@ -422,9 +530,25 @@ export function Connexion() {
             className="mt-10"
           >
             {mode === "inscription" ? (
-              <FormulaireInscription onSoumettre={handleInscription} />
+              <FormulaireInscription
+                onSoumettre={async (d) => {
+                  await onInscription?.(d);
+                }}
+                onGoogle={async () => {
+                  await onGoogle?.("inscription");
+                }}
+                onChangerMode={() => setMode("connexion")}
+              />
             ) : (
-              <FormulaireConnexion onSoumettre={handleConnexion} />
+              <FormulaireConnexion
+                onSoumettre={async (d) => {
+                  await onConnexion?.(d);
+                }}
+                onGoogle={async () => {
+                  await onGoogle?.("connexion");
+                }}
+                onChangerMode={() => setMode("inscription")}
+              />
             )}
           </div>
         </div>
