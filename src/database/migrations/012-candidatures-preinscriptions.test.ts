@@ -75,7 +75,7 @@ afterEach(() => {
 describe("migration candidatures_preinscriptions", () => {
   it("applique le registre 001–013 et crée les deux tables", () => {
     expect(migrations.map((migration) => migration.version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
     ]);
     expect(migrations[11]).toMatchObject({
       version: 12,
@@ -104,6 +104,8 @@ describe("migration candidatures_preinscriptions", () => {
       { version: 14, name: "correction_005_echeanciers_reglements" },
       { version: 15, name: "correction_006_encaissements_credits" },
       { version: 16, name: "correction_007_gestion_caisse" },
+      { version: 17, name: "compte_utilisateur" },
+      { version: 18, name: "infos_ecole_annee" },
     ]);
     expect(
       database.exec({

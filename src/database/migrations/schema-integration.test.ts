@@ -87,12 +87,12 @@ describe("intégrité globale du schéma SQLite V1", () => {
     });
 
     expect(versions.map((row) => row.version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
     ]);
     expect(migrations.map((migration) => migration.version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
     ]);
-    expect(objectCounts).toContainEqual({ type: "table", count: 76 });
+    expect(objectCounts).toContainEqual({ type: "table", count: 77 });
     expect(objectCounts).toContainEqual({ type: "view", count: 1 });
     expect(
       Number(objectCounts.find((row) => row.type === "index")?.count),
@@ -127,7 +127,7 @@ describe("intégrité globale du schéma SQLite V1", () => {
     ).toBe("ok");
 
     database.exec(`
-      INSERT INTO etablissement VALUES ('etablissement-1');
+      INSERT INTO etablissement (id_etablissement) VALUES ('etablissement-1');
       INSERT INTO annee_scolaire (id_annee_scolaire, id_etablissement)
         VALUES ('annee-1', 'etablissement-1');
       INSERT INTO type_frais (id_type_frais, code_type_frais, libelle)

@@ -161,7 +161,7 @@ describe("migration facturation_creances", () => {
     }
 
     database.exec(`
-      INSERT INTO etablissement VALUES ('etablissement-1');
+      INSERT INTO etablissement (id_etablissement) VALUES ('etablissement-1');
       INSERT INTO annee_scolaire (id_annee_scolaire, id_etablissement)
         VALUES ('annee-1', 'etablissement-1');
       INSERT INTO annee_scolaire (id_annee_scolaire, id_etablissement)
@@ -183,10 +183,10 @@ describe("migration facturation_creances", () => {
     });
 
     expect(applied.map((row) => row.version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
     ]);
     expect(migrations.map((migration) => migration.version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
     ]);
     expect(
       database.exec({

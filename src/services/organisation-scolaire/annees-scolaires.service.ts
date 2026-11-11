@@ -14,11 +14,21 @@ const statutSuivant: Record<StatutAnneeScolaire, StatutAnneeScolaire | null> = {
   ARCHIVEE: null,
 };
 
+/**
+ * Champs lisibles ajoutés par la migration 018 : fournis en même temps que
+ * les identifiants, ils sont enregistrés ; absents, ils sont ignorés
+ * (COALESCE côté SQL) afin de ne rien écraser par accident.
+ */
+type ChampsLisibles = Partial<
+  Pick<AnneeScolaire, "libelle" | "date_debut" | "date_fin">
+>;
+
 export function creerServiceAnneesScolaires(database: SQLiteExecutor) {
   async function obtenir(id: string): Promise<AnneeScolaire> {
     const rows = await selectionner<AnneeScolaire>(
       database,
-      `SELECT id_annee_scolaire, id_etablissement, statut
+      `SELECT id_annee_scolaire, id_etablissement, statut,
+              libelle, date_debut, date_fin
        FROM annee_scolaire
        WHERE id_annee_scolaire = ?;`,
       [id],
@@ -32,7 +42,8 @@ export function creerServiceAnneesScolaires(database: SQLiteExecutor) {
     ): Promise<AnneeScolaire[]> {
       return selectionner(
         database,
-        `SELECT id_annee_scolaire, id_etablissement, statut
+        `SELECT id_annee_scolaire, id_etablissement, statut,
+                libelle, date_debut, date_fin
          FROM annee_scolaire
          WHERE id_etablissement = ?
          ORDER BY id_annee_scolaire;`,
@@ -43,14 +54,26 @@ export function creerServiceAnneesScolaires(database: SQLiteExecutor) {
     obtenir,
 
     async creer(
-      annee: Pick<AnneeScolaire, "id_annee_scolaire" | "id_etablissement">,
+      annee: Pick<
+        AnneeScolaire,
+        "id_annee_scolaire" | "id_etablissement"
+      > &
+        ChampsLisibles,
     ): Promise<AnneeScolaire> {
       const rows = await traduireErreurSQLite("L’année scolaire", () =>
         database.query(
-          `INSERT INTO annee_scolaire (id_annee_scolaire, id_etablissement)
-           VALUES (?, ?)
-           RETURNING id_annee_scolaire, id_etablissement, statut;`,
-          [annee.id_annee_scolaire, annee.id_etablissement],
+          `INSERT INTO annee_scolaire
+             (id_annee_scolaire, id_etablissement, libelle, date_debut, date_fin)
+           VALUES (?, ?, ?, ?, ?)
+           RETURNING id_annee_scolaire, id_etablissement, statut,
+                     libelle, date_debut, date_fin;`,
+          [
+            annee.id_annee_scolaire,
+            annee.id_etablissement,
+            annee.libelle ?? null,
+            annee.date_debut ?? null,
+            annee.date_fin ?? null,
+          ],
         ),
       );
       return exigerLigne(rows, "L’année scolaire", annee.id_annee_scolaire);
@@ -61,15 +84,27 @@ export function creerServiceAnneesScolaires(database: SQLiteExecutor) {
       changements: Pick<
         AnneeScolaire,
         "id_annee_scolaire" | "id_etablissement"
-      >,
+      > &
+        ChampsLisibles,
     ): Promise<AnneeScolaire> {
       const rows = await traduireErreurSQLite("L’année scolaire", () =>
         database.query(
           `UPDATE annee_scolaire
-           SET id_annee_scolaire = ?, id_etablissement = ?
+           SET id_annee_scolaire = ?, id_etablissement = ?,
+               libelle = COALESCE(?, libelle),
+               date_debut = COALESCE(?, date_debut),
+               date_fin = COALESCE(?, date_fin)
            WHERE id_annee_scolaire = ?
-           RETURNING id_annee_scolaire, id_etablissement, statut;`,
-          [changements.id_annee_scolaire, changements.id_etablissement, id],
+           RETURNING id_annee_scolaire, id_etablissement, statut,
+                     libelle, date_debut, date_fin;`,
+          [
+            changements.id_annee_scolaire,
+            changements.id_etablissement,
+            changements.libelle ?? null,
+            changements.date_debut ?? null,
+            changements.date_fin ?? null,
+            id,
+          ],
         ),
       );
       return exigerLigne(rows, "L’année scolaire", id);

@@ -179,7 +179,7 @@ afterEach(() => {
 describe("migration eleves_responsables", () => {
   it("applique le registre 001–013 et crée les cinq tables métier", () => {
     expect(migrations.map((migration) => migration.version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
     ]);
     expect(
       database
@@ -189,7 +189,7 @@ describe("migration eleves_responsables", () => {
           returnValue: "resultRows",
         })
         .map((row) => row.version),
-    ).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+    ).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]);
     expect(
       database.exec({
         sql: `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (

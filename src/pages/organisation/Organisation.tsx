@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import type { IconType } from "react-icons";
 import {
   FaCalendarAlt,
@@ -274,12 +275,10 @@ const FORM_CLASSE_VIDE: FormClasse = {
 };
 
 export function Organisation() {
+  const navigate = useNavigate();
   const [onglet, setOnglet] = useState<Onglet>("annees");
   const [etablissements, setEtablissements] = useState<Etablissement[]>([]);
   const [etablissementId, setEtablissementId] = useState<string | null>(null);
-  const [nouvelEtablissement, setNouvelEtablissement] = useState(
-    "etablissement-principal",
-  );
 
   const [annees, setAnnees] = useState<AnneeScolaire[]>([]);
   const [anneeSelectionnee, setAnneeSelectionnee] = useState("");
@@ -408,24 +407,6 @@ export function Organisation() {
     const action = confirmation.action;
     setConfirmation(null);
     await executerAction(action);
-  }
-
-  async function creerEtablissement() {
-    const id = nouvelEtablissement.trim();
-    if (!id) {
-      setMessage({
-        type: "erreur",
-        texte: "L'identifiant de l'établissement est obligatoire.",
-      });
-      return;
-    }
-    await executerAction(async () => {
-      await servicesOrganisationScolaire.etablissements.creer({
-        id_etablissement: id,
-      });
-      setMessage({ type: "succes", texte: "Établissement créé." });
-      await charger();
-    });
   }
 
   async function creerAnnee() {
@@ -682,29 +663,22 @@ export function Organisation() {
             </span>
             <div>
               <h2 className="text-lg font-semibold text-stone-900">
-                Établissement requis
+                École à configurer
               </h2>
               <p className="mt-1 text-sm text-stone-500">
-                Aucune année scolaire ni classe ne peut être créée sans
-                établissement. Créez d'abord l'établissement principal.
+                Aucune année scolaire ni classe ne peut exister sans école.
+                Suivez le parcours de configuration initiale pour créer votre
+                établissement, son année scolaire et ses classes.
               </p>
             </div>
           </div>
-          <div className="mt-5 flex gap-2">
-            <input
-              className={`${CLASSES_CHAMP} flex-1`}
-              value={nouvelEtablissement}
-              onChange={(event) => setNouvelEtablissement(event.target.value)}
-              placeholder="Identifiant de l'établissement"
-              aria-label="Identifiant de l'établissement"
-            />
+          <div className="mt-5">
             <Button
               type="button"
               variant="vert"
-              onClick={() => void creerEtablissement()}
-              isLoading={actionEnCours}
+              onClick={() => navigate("/configuration")}
             >
-              Créer
+              Configurer mon école
             </Button>
           </div>
         </Carte>
@@ -744,7 +718,12 @@ export function Organisation() {
                       Années scolaires
                     </h2>
                     <p className="mt-0.5 text-xs text-stone-500">
-                      Établissement : {etablissementId}
+                      Établissement :{" "}
+                      {etablissements.find(
+                        (item) =>
+                          item.id_etablissement === etablissementId &&
+                          item.nom,
+                      )?.nom ?? etablissementId}
                     </p>
                   </div>
                   <Button

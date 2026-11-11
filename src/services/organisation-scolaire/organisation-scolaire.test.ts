@@ -149,6 +149,8 @@ describe("services d’organisation scolaire", () => {
     expect(periode).toEqual({
       id_periode: "periode-1",
       id_annee_scolaire: "annee-1",
+      libelle: null,
+      ordre: null,
     });
     expect(
       await services.periodesPedagogiques.listerParAnnee("annee-1"),
@@ -158,7 +160,7 @@ describe("services d’organisation scolaire", () => {
         id_periode: "periode-2",
         id_annee_scolaire: "annee-1",
       }),
-    ).toEqual({ id_periode: "periode-2", id_annee_scolaire: "annee-1" });
+    ).toMatchObject({ id_periode: "periode-2", id_annee_scolaire: "annee-1" });
 
     expect(
       await services.cyclesEnseignement.modifierIdentifiant(
@@ -313,6 +315,67 @@ describe("services d’organisation scolaire", () => {
       expect(error).toBeInstanceOf(ConflitOrganisationError);
       expect((error as Error).cause).toBeInstanceOf(SQLiteCommandError);
     }
+  });
+
+  it("conserve le nom de l’école et les informations lisibles de l’année (migration 018)", async () => {
+    await services.etablissements.creer({
+      id_etablissement: "etablissement-1",
+      nom: "École Les Palmiers",
+    });
+    expect(await services.etablissements.obtenir("etablissement-1")).toMatchObject({
+      nom: "École Les Palmiers",
+    });
+
+    // Correction du nom sans recréer l'établissement
+    await services.etablissements.definirNom("etablissement-1", "École La Grâce");
+    expect(await services.etablissements.obtenir("etablissement-1")).toMatchObject({
+      nom: "École La Grâce",
+    });
+
+    await services.anneesScolaires.creer({
+      id_annee_scolaire: "2026-2027",
+      id_etablissement: "etablissement-1",
+      libelle: "2026-2027",
+      date_debut: "2026-10-01",
+      date_fin: "2027-06-30",
+    });
+    expect(await services.anneesScolaires.obtenir("2026-2027")).toMatchObject({
+      libelle: "2026-2027",
+      date_debut: "2026-10-01",
+      date_fin: "2027-06-30",
+    });
+
+    // Ancien appelant (identifiants seuls) : les libellés ne sont pas écrasés
+    await services.anneesScolaires.modifier("2026-2027", {
+      id_annee_scolaire: "2026-2027",
+      id_etablissement: "etablissement-1",
+    });
+    expect(await services.anneesScolaires.obtenir("2026-2027")).toMatchObject({
+      libelle: "2026-2027",
+    });
+
+    await services.periodesPedagogiques.creer({
+      id_periode: "T2",
+      id_annee_scolaire: "2026-2027",
+      libelle: "2e trimestre",
+      ordre: 2,
+    });
+    await services.periodesPedagogiques.creer({
+      id_periode: "T1",
+      id_annee_scolaire: "2026-2027",
+      libelle: "1er trimestre",
+      ordre: 1,
+    });
+    const periodes = await services.periodesPedagogiques.listerParAnnee("2026-2027");
+    expect(periodes.map((item) => item.id_periode)).toEqual(["T1", "T2"]);
+    expect(periodes[0]).toMatchObject({ libelle: "1er trimestre", ordre: 1 });
+
+    // Nettoyage dans l'ordre des dépendances (clés étrangères RESTRICT)
+    await services.periodesPedagogiques.supprimer("T1");
+    await services.periodesPedagogiques.supprimer("T2");
+    await services.anneesScolaires.supprimer("2026-2027");
+    await services.etablissements.supprimer("etablissement-1");
+    expect(await services.etablissements.lister()).toEqual([]);
   });
 
   it("annule toutes les écritures d’une transaction lorsqu’une instruction échoue", async () => {

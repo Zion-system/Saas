@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../../components/ui/Button";
 import { Carte } from "../../components/ui/Carte";
@@ -8,32 +8,44 @@ import { creerServiceAnneesScolaires } from "../../services/organisation-scolair
 import { recupererSession } from "../../services/compte/compte.service";
 
 /**
+ * Année scolaire par défaut, calculée au chargement du module — hors rendu
+ * React, pour respecter la pureté du rendu — avec le fuseau
+ * Africa/Brazzaville (la rentrée congolaise démarre en octobre ; dès
+ * septembre, la nouvelle année scolaire est considérée comme entamée).
+ */
+function calculerAnneeScolaireParDefaut() {
+  const parties = new Intl.DateTimeFormat("fr-FR", {
+    timeZone: "Africa/Brazzaville",
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(new Date());
+
+  const annee = Number(parties.find((partie) => partie.type === "year")?.value);
+  const mois = Number(parties.find((partie) => partie.type === "month")?.value);
+
+  // Règle inchangée : après septembre, l'année scolaire commence cette
+  // année (ancien code en mois 0-based >= 8 ; ici mois 1-based >= 9).
+  const anneeDebut = mois >= 9 ? annee : annee - 1;
+  const anneeFin = anneeDebut + 1;
+
+  return {
+    libelle_annee: `${anneeDebut}-${anneeFin}`,
+    debut_annee: `01/10/${anneeDebut}`,
+    fin_annee: `30/06/${anneeFin}`,
+  };
+}
+
+const VALEURS_PAR_DEFAUT = calculerAnneeScolaireParDefaut();
+
+/**
  * Étape "École" du wizard de configuration initiale.
  */
 export function Ecole() {
   const navigate = useNavigate();
 
-  // Calculer l'année scolaire par défaut (dynamique, fuseau Africa/Brazzaville)
-  const valeursParDefaut = useMemo(() => {
-    const maintenant = new Date();
-    const annee = maintenant.getFullYear();
-    const mois = maintenant.getMonth();
-    
-    // Si on est après septembre, l'année scolaire commence cette année
-    // Sinon, elle a commencé l'année précédente
-    const anneeDebut = mois >= 8 ? annee : annee - 1;
-    const anneeFin = anneeDebut + 1;
-
-    return {
-      libelle_annee: `${anneeDebut}-${anneeFin}`,
-      debut_annee: `01/10/${anneeDebut}`,
-      fin_annee: `30/06/${anneeFin}`,
-    };
-  }, []);
-
   const [formData, setFormData] = useState({
     langue: "Français seulement",
-    ...valeursParDefaut,
+    ...VALEURS_PAR_DEFAUT,
     decoupage: "3 trimestres",
   });
   const [erreur, setErreur] = useState<string | null>(null);

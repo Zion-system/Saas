@@ -19,6 +19,7 @@ import {
   FaUserGraduate,
 } from "react-icons/fa";
 import { NOM_ECOLE } from "../../config/ecole";
+import { AUTH_DESACTIVEE_TEMPORAIREMENT } from "../../config/authentification";
 import { Badge } from "../ui/Badge";
 import { deconnecter } from "../../services/compte/compte.service";
 
@@ -131,17 +132,22 @@ function ContenuNavigation({ onNaviguer }: { onNaviguer?: () => void }) {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            deconnecter();
-            window.location.href = "/onboarding/connexion";
-          }}
-          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-rose-100/75 transition-colors hover:bg-rose-500/10 hover:text-rose-100"
-        >
-          <FaSignOutAlt className="h-4 w-4" aria-hidden="true" />
-          Se déconnecter
-        </button>
+        {/* Déconnexion : masquée tant que l'authentification est désactivée
+            temporairement (interrupteur) — il n'y a alors aucune session à
+            fermer. Elle réapparaîtra avec l'authentification Supabase. */}
+        {!AUTH_DESACTIVEE_TEMPORAIREMENT && (
+          <button
+            type="button"
+            onClick={() => {
+              deconnecter();
+              window.location.href = "/onboarding/connexion";
+            }}
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-rose-100/75 transition-colors hover:bg-rose-500/10 hover:text-rose-100"
+          >
+            <FaSignOutAlt className="h-4 w-4" aria-hidden="true" />
+            Se déconnecter
+          </button>
+        )}
       </div>
     </div>
   );

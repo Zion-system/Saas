@@ -10,10 +10,10 @@ export function creerServicePeriodesPedagogiques(database: SQLiteExecutor) {
     ): Promise<PeriodePedagogique[]> {
       return selectionner(
         database,
-        `SELECT id_periode, id_annee_scolaire
+        `SELECT id_periode, id_annee_scolaire, libelle, ordre
          FROM periode_pedagogique
          WHERE id_annee_scolaire = ?
-         ORDER BY id_periode;`,
+         ORDER BY COALESCE(ordre, 2147483647), id_periode;`,
         [idAnneeScolaire],
       );
     },
@@ -21,7 +21,7 @@ export function creerServicePeriodesPedagogiques(database: SQLiteExecutor) {
     async obtenir(id: string): Promise<PeriodePedagogique> {
       const rows = await selectionner<PeriodePedagogique>(
         database,
-        `SELECT id_periode, id_annee_scolaire
+        `SELECT id_periode, id_annee_scolaire, libelle, ordre
          FROM periode_pedagogique
          WHERE id_periode = ?;`,
         [id],
@@ -32,10 +32,16 @@ export function creerServicePeriodesPedagogiques(database: SQLiteExecutor) {
     async creer(periode: PeriodePedagogique): Promise<PeriodePedagogique> {
       const rows = await traduireErreurSQLite("La période pédagogique", () =>
         database.query(
-          `INSERT INTO periode_pedagogique (id_periode, id_annee_scolaire)
-           VALUES (?, ?)
-           RETURNING id_periode, id_annee_scolaire;`,
-          [periode.id_periode, periode.id_annee_scolaire],
+          `INSERT INTO periode_pedagogique
+             (id_periode, id_annee_scolaire, libelle, ordre)
+           VALUES (?, ?, ?, ?)
+           RETURNING id_periode, id_annee_scolaire, libelle, ordre;`,
+          [
+            periode.id_periode,
+            periode.id_annee_scolaire,
+            periode.libelle ?? null,
+            periode.ordre ?? null,
+          ],
         ),
       );
       return exigerLigne(rows, "La période pédagogique", periode.id_periode);
@@ -48,10 +54,18 @@ export function creerServicePeriodesPedagogiques(database: SQLiteExecutor) {
       const rows = await traduireErreurSQLite("La période pédagogique", () =>
         database.query(
           `UPDATE periode_pedagogique
-           SET id_periode = ?, id_annee_scolaire = ?
+           SET id_periode = ?, id_annee_scolaire = ?,
+               libelle = COALESCE(?, libelle),
+               ordre = COALESCE(?, ordre)
            WHERE id_periode = ?
-           RETURNING id_periode, id_annee_scolaire;`,
-          [changements.id_periode, changements.id_annee_scolaire, id],
+           RETURNING id_periode, id_annee_scolaire, libelle, ordre;`,
+          [
+            changements.id_periode,
+            changements.id_annee_scolaire,
+            changements.libelle ?? null,
+            changements.ordre ?? null,
+            id,
+          ],
         ),
       );
       return exigerLigne(rows, "La période pédagogique", id);

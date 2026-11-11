@@ -2,6 +2,13 @@ import { useId, useState, type FormEvent, type ReactNode } from "react";
 import { FcGoogle } from "react-icons/fc";
 import { FiEye, FiEyeOff } from "react-icons/fi";
 
+// Année courante calculée hors rendu React (pureté du rendu), fuseau
+// Africa/Brazzaville — utilisée pour le pied de page ©.
+const ANNEE_COURANTE = new Intl.DateTimeFormat("fr-FR", {
+  timeZone: "Africa/Brazzaville",
+  year: "numeric",
+}).format(new Date());
+
 export type ModeAuth = "connexion" | "inscription";
 
 export interface DonneesConnexion {
@@ -488,7 +495,7 @@ export function Connexion({
         </div>
 
         <p className="text-xs text-white/30">
-          © {new Date().getFullYear()} {nomProduit} — Tous droits réservés
+          © {ANNEE_COURANTE} {nomProduit} — Tous droits réservés
         </p>
       </aside>
 

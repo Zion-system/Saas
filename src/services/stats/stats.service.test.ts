@@ -119,7 +119,7 @@ describe("statsService — statistiques du tableau de bord", () => {
     const moisPrecedent = decalerCleMois(moisCourant, -1);
 
     inserer(`
-      INSERT INTO etablissement VALUES ('etab-1');
+      INSERT INTO etablissement (id_etablissement) VALUES ('etab-1');
       INSERT INTO annee_scolaire (id_annee_scolaire, id_etablissement)
         VALUES ('annee-1', 'etab-1');
       INSERT INTO niveau_enseignement VALUES ('niv-1');
