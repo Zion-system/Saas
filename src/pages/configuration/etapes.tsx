@@ -6,11 +6,13 @@ import {
   LuCircleCheckBig,
   LuDownload,
   LuFileSpreadsheet,
+  LuLock,
   LuMail,
   LuPhone,
   LuPlus,
   LuSchool,
   LuTrash2,
+  LuUpload,
   LuUserPlus,
 } from "react-icons/lu";
 import {
@@ -41,6 +43,8 @@ import {
   SYSTEMES_CLASSES,
   uid,
 } from "./donnees";
+import { genererModeleEleves } from "../../utils/import-eleves";
+import type { ResultatAnalyse } from "../../utils/import-eleves";
 import type {
   Bareme,
   CleSystemeClasses,
@@ -53,9 +57,10 @@ import type {
 
 /**
  * Les 6 étapes du parcours « Configuration initiale », fidèles à la
- * maquette vidéo. Les étapes Frais, Élèves et Équipe affichent un bandeau
- * d'honnêteté : leur interface existe, l'enregistrement en base arrive
- * avec les modules correspondants (facturation, dossier élève, base
+ * maquette vidéo. Élèves est branché sur la base (ajout à la main + import
+ * de fichier Excel, migration 019). Les étapes Frais et Équipe affichent
+ * un bandeau d'honnêteté : leur interface existe, l'enregistrement arrive
+ * avec les modules correspondants (facturation G-02 à G-08, base
  * distante).
  */
 
@@ -547,14 +552,26 @@ const zoneDepotCls =
 export function EtapeEleves({
   donnees,
   classesDisponibles,
-  onChanger,
+  analyse,
+  analyseEnCours,
+  importEnCours,
+  onFichierChoisi,
+  onImporterValides,
+  onAjouter,
+  onRetirer,
   onContinuer,
   onRetour,
   enCours,
 }: {
   donnees: DonneesEleves;
   classesDisponibles: string[];
-  onChanger: (donnees: DonneesEleves) => void;
+  analyse: ResultatAnalyse | null;
+  analyseEnCours: boolean;
+  importEnCours: boolean;
+  onFichierChoisi: (fichier: File | null) => void;
+  onImporterValides: () => void;
+  onAjouter: (eleve: Omit<EleveBrouillon, "id">) => Promise<boolean>;
+  onRetirer: (id: string) => Promise<void>;
   onContinuer: () => void;
   onRetour: () => void;
   enCours: boolean;
@@ -569,60 +586,64 @@ export function EtapeEleves({
   };
 
   const [formulaire, setFormulaire] = useState(formulaireVide);
+  const [ajoutEnCours, setAjoutEnCours] = useState(false);
+  const [idEnRetrait, setIdEnRetrait] = useState<string | null>(null);
   const fichierRef = useRef<HTMLInputElement>(null);
 
   const majFormulaire = (cle: keyof Omit<EleveBrouillon, "id">) =>
-    (evenement: ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    (evenement: EvenementChamp) =>
       setFormulaire({ ...formulaire, [cle]: evenement.target.value });
 
   const peutAjouter =
     formulaire.prenom.trim() !== "" && formulaire.nom.trim() !== "";
 
-  const ajouter = () => {
-    if (!peutAjouter) return;
-    onChanger({
-      ...donnees,
-      liste: [
-        ...donnees.liste,
-        {
-          id: uid(),
-          ...formulaire,
-          classe: formulaire.classe !== "" ? formulaire.classe : "Sans classe pour l'instant",
-        },
-      ],
-    });
-    setFormulaire(formulaireVide);
+  const ajouter = async () => {
+    if (!peutAjouter || ajoutEnCours) return;
+    setAjoutEnCours(true);
+    try {
+      const reussi = await onAjouter(formulaire);
+      if (reussi) setFormulaire(formulaireVide);
+    } finally {
+      setAjoutEnCours(false);
+    }
   };
 
-  const retirer = (id: string) => {
-    onChanger({
-      ...donnees,
-      liste: donnees.liste.filter((eleve) => eleve.id !== id),
-    });
+  const retirer = async (id: string) => {
+    if (idEnRetrait) return;
+    setIdEnRetrait(id);
+    try {
+      await onRetirer(id);
+    } finally {
+      setIdEnRetrait(null);
+    }
   };
 
   const telechargerModele = () => {
-    const csv =
-      "Prénom;Nom;Sexe;Classe;Nom du parent;Téléphone du parent\n" +
-      `Ana;MBOUMBA;F;${classesDisponibles[0] ?? "CP1"};Mme LOUANGO;${INDICATIF_TELEPHONE} 06 123 45 67\n`;
+    const contenu = genererModeleEleves();
     const url = URL.createObjectURL(
-      new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" }),
+      new Blob([contenu], {
+        type:
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      }),
     );
     Object.assign(document.createElement("a"), {
       href: url,
-      download: "modele-eleves.csv",
+      download: "modele-eleves.xlsx",
     }).click();
     URL.revokeObjectURL(url);
   };
 
+  const prets = analyse?.prets.length ?? 0;
+  const nombreErreurs = analyse?.erreurs.length ?? 0;
+  const nombreDoublons = analyse?.doublons.length ?? 0;
+
   return (
     <>
-      <NoteEnAttente>
-        Le dossier élève (noms, classe, parents) n'est pas encore construit :
-        vos élèves restent dans cette page et seront enregistrés avec le
-        module Élèves. Pour l'instant, l'import de fichier prépare seulement
-        votre modèle.
-      </NoteEnAttente>
+      <p className="text-[13px] text-stone-500">
+        Chaque élève ajouté — à la main ou par fichier — est enregistré tout
+        de suite dans votre école. Le dossier élève complet (documents,
+        évaluations) suivra avec le module Élèves.
+      </p>
 
       <section className={carteCls}>
         <h3 className={titreBlocCls}>Ajouter un élève à la main</h3>
@@ -692,8 +713,8 @@ export function EtapeEleves({
         <Bouton
           variante="secondaire"
           icone={LuUserPlus}
-          onClick={ajouter}
-          disabled={!peutAjouter}
+          onClick={() => void ajouter()}
+          disabled={!peutAjouter || ajoutEnCours || enCours}
         >
           Ajouter cet élève
         </Bouton>
@@ -702,7 +723,7 @@ export function EtapeEleves({
       {donnees.liste.length > 0 ? (
         <section className="flex flex-col gap-2.5" aria-live="polite">
           <h3 className={titreBlocCls}>
-            Élèves ajoutés ({donnees.liste.length})
+            Élèves enregistrés ({donnees.liste.length})
           </h3>
           <ul className="divide-y divide-stone-200 overflow-hidden rounded-xl border border-stone-200 bg-white">
             {donnees.liste.map((eleve) => (
@@ -724,7 +745,8 @@ export function EtapeEleves({
                   type="button"
                   className={cx(lienDangerCls, "shrink-0")}
                   aria-label={`Retirer ${eleve.prenom} ${eleve.nom}`}
-                  onClick={() => retirer(eleve.id)}
+                  disabled={idEnRetrait === eleve.id}
+                  onClick={() => void retirer(eleve.id)}
                 >
                   <LuTrash2 size={14} aria-hidden="true" /> Retirer
                 </button>
@@ -735,49 +757,44 @@ export function EtapeEleves({
       ) : null}
 
       <section className={carteCls}>
-        <h3 className={titreBlocCls}>Ou préparer un fichier Excel</h3>
+        <h3 className={titreBlocCls}>Ou importer un fichier Excel</h3>
 
-        <button type="button" onClick={telechargerModele} className={zoneDepotCls}>
+        <button
+          type="button"
+          onClick={telechargerModele}
+          className={zoneDepotCls}
+        >
           <LuDownload size={20} aria-hidden="true" className="text-[#2d8a6b]" />
           <strong className="text-sm">Télécharger le modèle Excel</strong>
           <span className="text-[12.5px] text-stone-500">
-            Les colonnes attendues, avec un exemple rempli.
+            Vrai fichier .xlsx : colonnes attendues et exemple rempli.
           </span>
         </button>
 
-        <label className="flex cursor-pointer items-start gap-2.5">
-          <input
-            type="checkbox"
-            checked={donnees.facturerInscription}
-            onChange={(evenement) =>
-              onChanger({
-                ...donnees,
-                facturerInscription: evenement.target.checked,
-              })
-            }
-            className="mt-0.5 size-4 accent-[#2d8a6b]"
+        <div className="flex items-start gap-2.5 rounded-xl border border-stone-200 bg-stone-100/60 px-3.5 py-2.5">
+          <LuLock
+            size={14}
+            aria-hidden="true"
+            className="mt-0.5 shrink-0 text-stone-400"
           />
-          <span className="flex flex-col text-[13.5px]">
-            <strong className="font-semibold">
+          <span className="flex flex-col text-[13px] text-stone-500">
+            <strong className="font-semibold text-stone-600">
               Facturer les frais d'inscription aux élèves importés
             </strong>
-            <span className="text-[12.5px] text-stone-500">
-              À décocher pour un registre d'élèves déjà scolarisés.
-            </span>
+            Cette option arrivera avec le module Facturation (décisions
+            G-02 à G-08) : rien n'est facturé pour l'instant.
           </span>
-        </label>
+        </div>
 
         <input
           ref={fichierRef}
           type="file"
           hidden
           accept=".xlsx,.xls,.csv"
-          onChange={(evenement) =>
-            onChanger({
-              ...donnees,
-              fichier: evenement.target.files?.[0] ?? null,
-            })
-          }
+          onChange={(evenement) => {
+            onFichierChoisi(evenement.target.files?.[0] ?? null);
+            evenement.target.value = "";
+          }}
         />
         <button
           type="button"
@@ -797,9 +814,74 @@ export function EtapeEleves({
           <span className="text-[12.5px] text-stone-500">
             {donnees.fichier
               ? "Cliquez pour changer de fichier"
-              : ".xlsx, .xls ou .csv"}
+              : ".xlsx, .xls ou .csv — lecture 100 % sur cet appareil"}
           </span>
         </button>
+
+        {analyseEnCours ? (
+          <p className="text-sm text-stone-500">Lecture du fichier…</p>
+        ) : null}
+
+        {analyse ? (
+          <div className="flex flex-col gap-2.5 rounded-xl border border-stone-200 bg-white p-3.5">
+            <div className="flex flex-wrap gap-2 text-[12.5px]">
+              <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-emerald-800">
+                {prets} élève{prets > 1 ? "s" : ""} prêt
+                {prets > 1 ? "s" : ""}
+              </span>
+              {nombreErreurs > 0 ? (
+                <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-red-800">
+                  {nombreErreurs} ligne{nombreErreurs > 1 ? "s" : ""} à
+                  corriger
+                </span>
+              ) : null}
+              {nombreDoublons > 0 ? (
+                <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-amber-800">
+                  {nombreDoublons} doublon{nombreDoublons > 1 ? "s" : ""}{" "}
+                  ignoré{nombreDoublons > 1 ? "s" : ""}
+                </span>
+              ) : null}
+            </div>
+
+            {analyse.erreurs.length > 0 ? (
+              <ul className="flex max-h-44 flex-col gap-1 overflow-auto rounded-lg bg-red-50 p-2 text-[12.5px] text-red-800">
+                {analyse.erreurs.map((erreur) => (
+                  <li key={`erreur-${erreur.ligne}-${erreur.message}`}>
+                    Ligne {erreur.ligne} — {erreur.message}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            {analyse.doublons.length > 0 ? (
+              <ul className="flex max-h-44 flex-col gap-1 overflow-auto rounded-lg bg-amber-50 p-2 text-[12.5px] text-amber-800">
+                {analyse.doublons.map((doublon) => (
+                  <li
+                    key={`doublon-${doublon.ligne}-${doublon.prenom}-${doublon.nom}`}
+                  >
+                    Ligne {doublon.ligne} — {doublon.nom.toUpperCase()}{" "}
+                    {doublon.prenom} (
+                    {doublon.motif === "base"
+                      ? "déjà enregistré"
+                      : "déjà vu dans le fichier"}
+                    )
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            <Bouton
+              icone={LuUpload}
+              onClick={onImporterValides}
+              disabled={prets === 0 || importEnCours}
+              enCours={importEnCours}
+            >
+              {prets > 0
+                ? `Importer les ${prets} élèves prêts`
+                : "Rien à importer"}
+            </Bouton>
+          </div>
+        ) : null}
       </section>
 
       <Bouton
@@ -807,9 +889,7 @@ export function EtapeEleves({
         onClick={onContinuer}
         enCours={enCours}
       >
-        {donnees.liste.length > 0 || donnees.fichier
-          ? "Continuer"
-          : "Passer cette étape"}
+        {donnees.liste.length > 0 ? "Continuer" : "Passer cette étape"}
       </Bouton>
       <LienEtapePrecedente onRetour={onRetour} />
     </>

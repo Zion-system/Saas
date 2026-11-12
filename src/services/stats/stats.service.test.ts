@@ -123,7 +123,7 @@ describe("statsService — statistiques du tableau de bord", () => {
       INSERT INTO annee_scolaire (id_annee_scolaire, id_etablissement)
         VALUES ('annee-1', 'etab-1');
       INSERT INTO niveau_enseignement VALUES ('niv-1');
-      INSERT INTO modele_classe VALUES ('mod-1');
+      INSERT INTO modele_classe (id_modele_classe) VALUES ('mod-1');
       INSERT INTO classe_annuelle (
         id_classe_annuelle, id_annee_scolaire, id_niveau,
         id_modele_classe, id_etablissement

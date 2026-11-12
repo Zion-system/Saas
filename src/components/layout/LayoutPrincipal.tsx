@@ -34,7 +34,7 @@ interface EntreeNavigation {
 const NAVIGATION: EntreeNavigation[] = [
   { libelle: "Accueil", chemin: "/", icone: FaHome, disponible: true },
   { libelle: "Organisation", chemin: "/organisation", icone: FaSchool, disponible: true },
-  { libelle: "Élèves & responsables", chemin: "/eleves", icone: FaUserGraduate, disponible: false },
+  { libelle: "Élèves & responsables", chemin: "/eleves", icone: FaUserGraduate, disponible: true },
   { libelle: "Candidatures", chemin: "/candidatures", icone: FaFileAlt, disponible: false },
   { libelle: "Inscriptions", chemin: "/inscriptions", icone: FaClipboardList, disponible: false },
   { libelle: "Facturation", chemin: "/facturation", icone: FaFileInvoiceDollar, disponible: false },

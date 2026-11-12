@@ -116,7 +116,7 @@ describe("migration catalogue_frais_tarification", () => {
       INSERT INTO annee_scolaire (id_annee_scolaire, id_etablissement)
         VALUES ('annee-2', 'etablissement-1');
       INSERT INTO niveau_enseignement VALUES ('niveau-1');
-      INSERT INTO modele_classe VALUES ('modele-1');
+      INSERT INTO modele_classe (id_modele_classe) VALUES ('modele-1');
       INSERT INTO classe_annuelle (
         id_classe_annuelle, id_annee_scolaire, id_niveau,
         id_modele_classe, id_etablissement
@@ -145,7 +145,7 @@ describe("migration catalogue_frais_tarification", () => {
 
     expect(rows[0]?.foreign_keys).toBe(1);
     expect(migrations.map((migration) => migration.version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
     ]);
   });
 

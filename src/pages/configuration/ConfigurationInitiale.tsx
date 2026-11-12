@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { LuCheck } from "react-icons/lu";
+import { servicesElevesResponsables } from "../../services/eleves-responsables";
+import type { DossierEleve } from "../../services/eleves-responsables";
 import { servicesOrganisationScolaire } from "../../services/organisation-scolaire";
+import {
+  analyserEleves,
+  lireLignesBrutes,
+} from "../../utils/import-eleves";
+import type { ResultatAnalyse } from "../../utils/import-eleves";
 import type { ClasseAnnuelle } from "../../services/organisation-scolaire";
 import {
   MessageErreur,
@@ -18,18 +25,19 @@ import {
 import type { LigneResume } from "./etapes";
 import {
   ANNEE_DEFAUT,
+  construireCatalogueLibelles,
   cx,
   ETAPES,
   ID_ETABLISSEMENT,
   PERIODES_PAR_DECOUPAGE,
   nouveauBareme,
   slugifier,
-  SYSTEMES_CLASSES,
 } from "./donnees";
 import type {
   CleSystemeClasses,
   DonneesEcole,
   DonneesEleves,
+  EleveBrouillon,
   DonneesFrais,
   MembreEquipe,
 } from "./donnees";
@@ -39,10 +47,12 @@ import type {
  * École → Classes → Frais → Élèves → Équipe → Terminé.
  *
  * Branchement réel (enregistré en base) : École (établissement, année
- * scolaire, périodes) et Classes (niveaux, modèles, classes annuelles).
+ * scolaire, périodes), Classes (niveaux, modèles, classes annuelles) et
+ * Élèves (dossier complet : élève + inscription + affectation de classe +
+ * responsable — migration 019), à la main ou par import de fichier Excel.
  * Étapes affichées mais en attente de leurs modules : Frais (facturation,
- * carnet de gouvernance G-02 à G-08), Élèves (dossier élève) et Équipe
- * (invitations, base distante) — un bandeau d'honnêteté l'indique.
+ * carnet de gouvernance G-02 à G-08) et Équipe (invitations, base
+ * distante) — un bandeau d'honnêteté l'indique.
  *
  * Accessible sans connexion tant que AUTH_DESACTIVEE_TEMPORAIREMENT est
  * armé ; l'application redirige ici au démarrage tant qu'aucune école
@@ -63,6 +73,22 @@ const DONNEES_ECOLE_VIERGES: DonneesEcole = {
   fin: ANNEE_DEFAUT.fin,
   decoupage: "3 trimestres",
 };
+
+/** Convertit un dossier lu en base en ligne affichable à l'étape 4. */
+function dossierVersBrouillon(
+  dossier: DossierEleve,
+  libelleClasse: string | null,
+): EleveBrouillon {
+  return {
+    id: dossier.id_eleve,
+    prenom: dossier.prenom ?? "",
+    nom: dossier.nom ?? "",
+    sexe: dossier.genre ?? "",
+    classe: libelleClasse ?? "Sans classe pour l'instant",
+    parent: "",
+    telephone: "",
+  };
+}
 
 export function ConfigurationInitiale() {
   const navigate = useNavigate();
@@ -98,25 +124,47 @@ export function ConfigurationInitiale() {
   const [donneesEleves, setDonneesEleves] = useState<DonneesEleves>({
     liste: [],
     fichier: null,
-    facturerInscription: true,
   });
+  const [analyse, setAnalyse] = useState<ResultatAnalyse | null>(null);
+  const [analyseEnCours, setAnalyseEnCours] = useState(false);
+  const [importEnCours, setImportEnCours] = useState(false);
   const [equipe, setEquipe] = useState<MembreEquipe[]>([]);
 
   /** Catalogue slug → libellé, pour afficher les classes choisies. */
-  const libellesSelectionnes = useMemo(() => {
-    const catalogue = new Map<string, string>();
-    for (const systemePropose of SYSTEMES_CLASSES) {
-      for (const famille of systemePropose.familles) {
-        for (const niveau of famille.niveaux) {
-          catalogue.set(slugifier(niveau), niveau);
-        }
-      }
+  const catalogue = useMemo(
+    () => construireCatalogueLibelles(autresClasses),
+    [autresClasses],
+  );
+
+  const libellesSelectionnes = useMemo(
+    () => selection.map((slug) => catalogue.get(slug) ?? slug),
+    [selection, catalogue],
+  );
+
+  /** id de classe annuelle → libellé affiché (classes réellement créées). */
+  const idVersLibelleClasse = useMemo(() => {
+    const correspondance = new Map<string, string>();
+    for (const classe of classesExistantes) {
+      correspondance.set(
+        classe.id_classe_annuelle,
+        catalogue.get(classe.id_classe_annuelle) ??
+          classe.id_classe_annuelle,
+      );
     }
-    for (const niveau of autresClasses) {
-      catalogue.set(slugifier(niveau), niveau);
-    }
-    return selection.map((slug) => catalogue.get(slug) ?? slug);
-  }, [selection, autresClasses]);
+    return correspondance;
+  }, [classesExistantes, catalogue]);
+
+  /** libellé affiché → id de classe annuelle (pour enregistrer en base). */
+  const libelleVersIdClasse = useMemo(
+    () =>
+      new Map(
+        [...idVersLibelleClasse.entries()].map(([id, libelle]) => [
+          libelle,
+          id,
+        ]),
+      ),
+    [idVersLibelleClasse],
+  );
 
   const charger = useCallback(async () => {
     try {
@@ -182,6 +230,54 @@ export function ConfigurationInitiale() {
 
       setClassesExistantes(classesRows);
       setSelection(classesRows.map((classe) => classe.id_classe_annuelle));
+
+      // Libellés des classes conservés en base (migration 020) : on
+      // restaure la liste des classes « autres » d'une session passée
+      // (« Première A » s'affiche à nouveau en toutes lettres) et on
+      // complète une fois pour toutes les modèles du catalogue officiel
+      // créés avant la migration. Ceux qui n'ont pas de libellé connu
+      // gardent leur identifiant technique en repli.
+      const catalogueSysteme = construireCatalogueLibelles([]);
+      const modelesRows =
+        await servicesOrganisationScolaire.modelesClasse.lister();
+      const autresRestaurees: string[] = [];
+      for (const modele of modelesRows) {
+        if (modele.libelle) {
+          if (!catalogueSysteme.has(modele.id_modele_classe)) {
+            autresRestaurees.push(modele.libelle);
+          }
+        } else {
+          const libelleSysteme = catalogueSysteme.get(modele.id_modele_classe);
+          if (libelleSysteme) {
+            await servicesOrganisationScolaire.modelesClasse.definirLibelle(
+              modele.id_modele_classe,
+              libelleSysteme,
+            );
+          }
+        }
+      }
+      setAutresClasses(autresRestaurees);
+
+      // Dossiers élèves déjà enregistrés (retour dans le parcours après
+      // fermeture de l'application). Le repli combine le catalogue
+      // officiel et les classes « autres » restaurées ci-dessus.
+      const dossiers =
+        await servicesElevesResponsables.dossiers.listerParEtablissement(
+          premier.id_etablissement,
+        );
+      const catalogueRepli = construireCatalogueLibelles(autresRestaurees);
+      setDonneesEleves({
+        liste: dossiers.map((dossier) =>
+          dossierVersBrouillon(
+            dossier,
+            dossier.id_classe_annuelle
+              ? catalogueRepli.get(dossier.id_classe_annuelle) ??
+                  dossier.id_classe_annuelle
+              : null,
+          ),
+        ),
+        fichier: null,
+      });
     } catch (error) {
       setErreur(messageErreur(error));
     } finally {
@@ -311,6 +407,9 @@ export function ConfigurationInitiale() {
         if (!modeles.has(slug)) {
           await servicesOrganisationScolaire.modelesClasse.creer({
             id_modele_classe: slug,
+            // Le libellé saisi est conservé en base (migration 020) :
+            // il resservira après fermeture et relance de l'application.
+            libelle: catalogue.get(slug) ?? null,
           });
           modeles.add(slug);
         }
@@ -345,16 +444,148 @@ export function ConfigurationInitiale() {
     setEtape(3);
   }
 
-  /** Étape 4 — l'import de fichier n'est pas encore branché. */
+  /** Étape 4 — l'import étant facultatif, on avance dans tous les cas. */
   function continuerEleves() {
     setErreur(null);
-    if (donneesEleves.fichier) {
-      setErreur(
-        "L'import de fichier Excel sera branché avec le module Élèves. Pour l'instant, ajoutez vos élèves à la main ou passez cette étape.",
+    setEtape(4);
+  }
+
+  /** Étape 4 — enregistre un élève ajouté à la main (dossier complet). */
+  async function enregistrerEleve(
+    donnee: Omit<EleveBrouillon, "id">,
+  ): Promise<boolean> {
+    if (!idEtablissement || !idAnnee) {
+      setErreur("Créez d'abord votre école à l'étape précédente.");
+      return false;
+    }
+    setErreur(null);
+    try {
+      await servicesElevesResponsables.dossiers.creer({
+        id_etablissement: idEtablissement,
+        id_annee_scolaire: idAnnee,
+        prenom: donnee.prenom,
+        nom: donnee.nom,
+        genre:
+          donnee.sexe === "F" || donnee.sexe === "M" ? donnee.sexe : null,
+        id_classe_annuelle:
+          donnee.classe !== ""
+            ? (libelleVersIdClasse.get(donnee.classe) ?? null)
+            : null,
+        parent:
+          donnee.parent.trim() !== ""
+            ? {
+                nom_complet: donnee.parent,
+                telephone: donnee.telephone.trim() || null,
+              }
+            : null,
+      });
+      await rafraichirEleves(idEtablissement);
+      return true;
+    } catch (error) {
+      setErreur(messageErreur(error));
+      return false;
+    }
+  }
+
+  /** Étape 4 — retire un élève : annulation de l'inscription (jamais une suppression). */
+  async function retirerEleve(id: string): Promise<void> {
+    if (!idEtablissement) return;
+    setErreur(null);
+    try {
+      await servicesElevesResponsables.dossiers.annuler(id, idEtablissement);
+      await rafraichirEleves(idEtablissement);
+    } catch (error) {
+      setErreur(messageErreur(error));
+    }
+  }
+
+  async function rafraichirEleves(idEtab: string): Promise<void> {
+    const dossiers =
+      await servicesElevesResponsables.dossiers.listerParEtablissement(
+        idEtab,
       );
+    setDonneesEleves((precedent) => ({
+      ...precedent,
+      liste: dossiers.map((dossier) =>
+        dossierVersBrouillon(
+          dossier,
+          dossier.id_classe_annuelle
+            ? (idVersLibelleClasse.get(dossier.id_classe_annuelle) ??
+              dossier.id_classe_annuelle)
+            : null,
+        ),
+      ),
+    }));
+  }
+
+  /** Étape 4 — fichier choisi : lecture locale puis contrôle ligne par ligne. */
+  async function choisirFichier(fichier: File | null): Promise<void> {
+    setErreur(null);
+    setAnalyse(null);
+    setDonneesEleves((precedent) => ({ ...precedent, fichier }));
+    if (!fichier) return;
+    setAnalyseEnCours(true);
+    try {
+      const lignes = await lireLignesBrutes(fichier);
+      setAnalyse(
+        analyserEleves(lignes, {
+          libellesClasses: libellesSelectionnes,
+          existants: donneesEleves.liste.map((eleve) => ({
+            prenom: eleve.prenom,
+            nom: eleve.nom,
+            classe:
+              eleve.classe === "Sans classe pour l'instant" ? null : eleve.classe,
+          })),
+        }),
+      );
+    } catch (error) {
+      setErreur(
+        error instanceof Error
+          ? error.message
+          : "Ce fichier n'a pas pu être lu.",
+      );
+      setAnalyse(null);
+    } finally {
+      setAnalyseEnCours(false);
+    }
+  }
+
+  /** Étape 4 — enregistre les élèves valides du fichier choisi. */
+  async function importerValides(): Promise<void> {
+    if (!idEtablissement || !idAnnee) {
+      setErreur("Créez d'abord votre école à l'étape précédente.");
       return;
     }
-    setEtape(4);
+    if (!analyse || analyse.prets.length === 0) return;
+    setImportEnCours(true);
+    setErreur(null);
+    try {
+      for (const pret of analyse.prets) {
+        await servicesElevesResponsables.dossiers.creer({
+          id_etablissement: idEtablissement,
+          id_annee_scolaire: idAnnee,
+          prenom: pret.prenom,
+          nom: pret.nom,
+          genre: pret.genre,
+          id_classe_annuelle: pret.classe
+            ? (libelleVersIdClasse.get(pret.classe) ?? null)
+            : null,
+          parent: pret.parent
+            ? { nom_complet: pret.parent, telephone: pret.telephone }
+            : null,
+        });
+      }
+      await rafraichirEleves(idEtablissement);
+      setDonneesEleves((precedent) => ({ ...precedent, fichier: null }));
+      setAnalyse(null);
+    } catch (error) {
+      setErreur(
+        `${messageErreur(error)} — les élèves déjà enregistrés le sont restés ; corrigez le fichier et réimportez le reste.`,
+      );
+      await rafraichirEleves(idEtablissement).catch(() => undefined);
+    } finally {
+      setImportEnCours(false);
+    }
   }
 
   /** Étape 5 — la liste d'équipe est une préparation (base distante). */
@@ -417,10 +648,13 @@ export function ConfigurationInitiale() {
     },
     {
       libelle: "Élèves",
-      valeur: donneesEleves.fichier
-        ? `${donneesEleves.liste.length} ajouté(s) + « ${donneesEleves.fichier.name} »`
-        : `${donneesEleves.liste.length} ajouté(s)`,
-      etat: "enAttente",
+      valeur:
+        donneesEleves.liste.length > 0
+          ? `${donneesEleves.liste.length} élève${
+              donneesEleves.liste.length > 1 ? "s" : ""
+            } enregistré${donneesEleves.liste.length > 1 ? "s" : ""}`
+          : "Étape passée (aucun élève)",
+      etat: "enregistre",
     },
     {
       libelle: "Équipe",
@@ -574,10 +808,13 @@ export function ConfigurationInitiale() {
             <EtapeEleves
               donnees={donneesEleves}
               classesDisponibles={libellesSelectionnes}
-              onChanger={(nouvelles) => {
-                setErreur(null);
-                setDonneesEleves(nouvelles);
-              }}
+              analyse={analyse}
+              analyseEnCours={analyseEnCours}
+              importEnCours={importEnCours}
+              onFichierChoisi={(fichier) => void choisirFichier(fichier)}
+              onImporterValides={() => void importerValides()}
+              onAjouter={enregistrerEleve}
+              onRetirer={retirerEleve}
               onContinuer={continuerEleves}
               onRetour={retournerEtapePrecedente}
               enCours={enCours}

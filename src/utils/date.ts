@@ -23,6 +23,26 @@ export function formaterDateFr(date: Date = new Date()): string {
 }
 
 /**
+ * Retourne la clé « AAAA-MM-JJ » du jour courant dans le fuseau de
+ * référence (ex. « 2026-11-11 ») — utilisée comme date civile ISO pour
+ * les inscriptions et affectations créées au fil de l'eau.
+ */
+export function cleJourCourant(date: Date = new Date()): string {
+  const parties = new Intl.DateTimeFormat("fr-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: FUSEAU_HORAIRE,
+  }).formatToParts(date);
+
+  const annee = parties.find((p) => p.type === "year")?.value ?? "0000";
+  const mois = parties.find((p) => p.type === "month")?.value ?? "01";
+  const jour = parties.find((p) => p.type === "day")?.value ?? "01";
+
+  return `${annee}-${mois}-${jour}`;
+}
+
+/**
  * Retourne la clé « AAAA-MM » du mois courant dans le fuseau de référence.
  */
 export function cleMoisCourant(date: Date = new Date()): string {

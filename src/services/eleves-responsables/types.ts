@@ -4,6 +4,9 @@ export interface Eleve {
   matricule: string | null;
 }
 
+/** Genre civil de l'élève (colonne ajoutée par la migration 019). */
+export type Genre = "F" | "M";
+
 export type CreerEleve = Pick<Eleve, "id_eleve" | "id_etablissement">;
 
 export interface Responsable {

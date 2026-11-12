@@ -45,6 +45,12 @@ export interface NiveauEnseignement {
 
 export interface ModeleClasse {
   id_modele_classe: string;
+  /**
+   * Libellé tel que saisi (ex. « Première A ») — migration 020.
+   * Facultatif : NULL pour les modèles créés avant la migration et
+   * jamais complétés ; l'identifiant technique sert alors de repli.
+   */
+  libelle?: string | null;
 }
 
 export interface ClasseAnnuelle {

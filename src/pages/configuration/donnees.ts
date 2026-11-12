@@ -211,7 +211,6 @@ export interface EleveBrouillon {
 export interface DonneesEleves {
   liste: EleveBrouillon[];
   fichier: File | null;
-  facturerInscription: boolean;
 }
 
 export interface MembreEquipe {
@@ -261,6 +260,24 @@ export function formaterIsoVersFrancais(iso: string): string {
 /** Identifiant lisible pour les clés React (jamais utilisé en base). */
 export function uid(): string {
   return Math.random().toString(36).slice(2, 11);
+}
+
+/** Catalogue slug → libellé de toutes les classes proposées (systèmes + « autres »). */
+export function construireCatalogueLibelles(
+  autresClasses: string[],
+): Map<string, string> {
+  const catalogue = new Map<string, string>();
+  for (const systemePropose of SYSTEMES_CLASSES) {
+    for (const famille of systemePropose.familles) {
+      for (const niveau of famille.niveaux) {
+        catalogue.set(slugifier(niveau), niveau);
+      }
+    }
+  }
+  for (const niveau of autresClasses) {
+    catalogue.set(slugifier(niveau), niveau);
+  }
+  return catalogue;
 }
 
 /** Transforme un libellé en identifiant stable (« Grande Section » → « grande-section »). */

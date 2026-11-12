@@ -5,6 +5,7 @@ import { Diagnostic } from "../../pages/diagnostic/Diagnostic";
 import { PageIntrouvable } from "../../pages/erreurs/PageIntrouvable";
 import { ModuleAVenir } from "../../pages/module-a-venir/ModuleAVenir";
 import { Organisation } from "../../pages/organisation/Organisation";
+import { PageEleves } from "../../pages/eleves/PageEleves";
 import { ConfigurationInitiale } from "../../pages/configuration/ConfigurationInitiale";
 import { Bienvenue } from "../../pages/onboarding/Bienvenue";
 import { Connexion } from "../../pages/onboarding/Connexion";
@@ -15,7 +16,6 @@ import { AUTH_DESACTIVEE_TEMPORAIREMENT } from "../../config/authentification";
 import { recupererSession } from "../../services/compte/compte.service";
 
 const CHEMINS_MODULES = [
-  "/eleves",
   "/candidatures",
   "/inscriptions",
   "/facturation",
@@ -70,6 +70,7 @@ export function AppRoutes() {
       <Route element={<GardeSession><LayoutPrincipal /></GardeSession>}>
         <Route path="/" element={<Accueil />} />
         <Route path="/organisation" element={<Organisation />} />
+        <Route path="/eleves" element={<PageEleves />} />
         <Route path="/diagnostic" element={<Diagnostic />} />
         {CHEMINS_MODULES.map((chemin) => (
           <Route key={chemin} path={chemin} element={<ModuleAVenir />} />

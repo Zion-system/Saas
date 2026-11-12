@@ -176,7 +176,7 @@ describe("services d’organisation scolaire", () => {
     ).toEqual({ id_niveau: "niveau-2" });
     expect(
       await services.modelesClasse.modifierIdentifiant("modele-1", "modele-2"),
-    ).toEqual({ id_modele_classe: "modele-2" });
+    ).toEqual({ id_modele_classe: "modele-2", libelle: null });
 
     const classe = await services.classesAnnuelles.creer({
       id_classe_annuelle: "classe-1",
