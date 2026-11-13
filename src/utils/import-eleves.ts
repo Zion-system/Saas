@@ -137,9 +137,7 @@ export function normaliserGenre(valeur: string): Genre | null | "invalide" {
 }
 
 /** Retire espaces, points et tirets pour valider un numéro de téléphone. */
-export function normaliserTelephone(
-  valeur: string,
-): string | null | "invalide" {
+export function normaliserTelephone(valeur: string): string | null | "invalide" {
   const propre = normaliserTexte(valeur);
   if (propre === "") return null;
   const chiffres = propre.replace(/[\s.\-()]/g, "");
@@ -147,7 +145,10 @@ export function normaliserTelephone(
   return propre;
 }
 
-function trouverColonne(entetes: string[], cibles: string[]): number {
+function trouverColonne(
+  entetes: string[],
+  cibles: string[],
+): number {
   for (let index = 0; index < entetes.length; index++) {
     const normalise = normaliserComparaison(entetes[index]);
     if (cibles.includes(normalise)) return index;
@@ -256,7 +257,8 @@ export function analyserEleves(
       return;
     }
 
-    const genreBrut = colonnes.sexe === -1 ? "" : (ligne[colonnes.sexe] ?? "");
+    const genreBrut =
+      colonnes.sexe === -1 ? "" : (ligne[colonnes.sexe] ?? "");
     const genre = normaliserGenre(genreBrut);
     if (genre === "invalide") {
       erreurs.push({

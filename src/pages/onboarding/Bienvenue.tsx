@@ -95,7 +95,7 @@ export function Bienvenue() {
                       id="telephone"
                       name="telephone"
                       className="flex-1 px-4 py-2 border border-stone-300 rounded-r-lg focus:outline-none focus:ring-2 focus:ring-vert-moyen"
-                      placeholder="06 00 00 00 00"
+                      placeholder="06 123 45 67"
                     />
                   </div>
                 </div>

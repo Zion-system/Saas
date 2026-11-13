@@ -40,11 +40,13 @@ import {
   LANGUES,
   nouveauBareme,
   ROLES,
+  slugifier,
   SYSTEMES_CLASSES,
   uid,
 } from "./donnees";
 import { genererModeleEleves } from "../../utils/import-eleves";
 import type { ResultatAnalyse } from "../../utils/import-eleves";
+import { formaterTelephoneLocal } from "../../utils/telephone";
 import type {
   Bareme,
   CleSystemeClasses,
@@ -205,11 +207,18 @@ export function EtapeClasses({
   const systemeActif =
     SYSTEMES_CLASSES.find((s) => s.cle === systeme) ?? SYSTEMES_CLASSES[0];
 
+  /**
+   * La sélection ne contient QUE des identifiants techniques (slugs) —
+   * « Première A » devient « premiere-a ». Les anciennes sessions pouvaient
+   * y avoir déposé le libellé brut : on bascule alors le brut pour ne pas
+   * créer deux fois la même classe.
+   */
   const basculer = (niveau: string) => {
+    const cible = selection.includes(niveau) ? niveau : slugifier(niveau);
     onSelection(
-      selection.includes(niveau)
-        ? selection.filter((item) => item !== niveau)
-        : [...selection, niveau],
+      selection.includes(cible)
+        ? selection.filter((item) => item !== cible)
+        : [...selection, cible],
     );
   };
 
@@ -258,7 +267,10 @@ export function EtapeClasses({
               {groupe.niveaux.map((niveau) => (
                 <Puce
                   key={niveau}
-                  actif={selection.includes(niveau)}
+                  actif={
+                    selection.includes(niveau) ||
+                    selection.includes(slugifier(niveau))
+                  }
                   onClick={() => basculer(niveau)}
                 >
                   {niveau}
@@ -694,7 +706,10 @@ export function EtapeEleves({
               onChange={majFormulaire("parent")}
             />
           </Champ>
-          <Champ label="Téléphone du parent">
+          <Champ
+            label="Téléphone du parent"
+            hint="Numéro local uniquement : l'indicatif +242 est ajouté tout seul."
+          >
             <div className="flex gap-2">
               <span className="inline-flex items-center gap-1.5 rounded-[10px] bg-stone-100 px-3 text-sm text-stone-500">
                 <LuPhone size={14} aria-hidden="true" />
@@ -703,7 +718,14 @@ export function EtapeEleves({
               <ChampTexte
                 inputMode="tel"
                 value={formulaire.telephone}
-                onChange={majFormulaire("telephone")}
+                onChange={(evenement) =>
+                  setFormulaire({
+                    ...formulaire,
+                    telephone: formaterTelephoneLocal(
+                      evenement.target.value,
+                    ),
+                  })
+                }
                 placeholder="06 123 45 67"
               />
             </div>

@@ -1,6 +1,7 @@
 import { useId, useState, type FormEvent, type ReactNode } from "react";
 import { FcGoogle } from "react-icons/fc";
 import { FiEye, FiEyeOff } from "react-icons/fi";
+import { formaterTelephoneLocal, telephoneCompose } from "../../utils/telephone";
 
 // Année courante calculée hors rendu React (pureté du rendu), fuseau
 // Africa/Brazzaville — utilisée pour le pied de page ©.
@@ -195,7 +196,14 @@ function FormulaireInscription({
 
     setEnvoi(true);
     try {
-      await onSoumettre({ prenom, nom, telephone, email, motDePasse });
+      await onSoumettre({
+        prenom,
+        nom,
+        // Le compte garde le numéro avec son indicatif (+242 …).
+        telephone: telephoneCompose(telephone) ?? telephone,
+        email,
+        motDePasse,
+      });
     } catch (error: unknown) {
       setErreur(
         error instanceof Error
@@ -244,17 +252,28 @@ function FormulaireInscription({
           </Champ>
         </div>
 
-        <Champ etiquette="Téléphone" htmlFor={`${uid}-tel`}>
-          <input
-            id={`${uid}-tel`}
-            type="tel"
-            value={telephone}
-            onChange={(e) => setTelephone(e.target.value)}
-            placeholder="+223"
-            autoComplete="tel"
-            required
-            className={CLASSE_CHAMP}
-          />
+        <Champ
+          etiquette="Téléphone"
+          htmlFor={`${uid}-tel`}
+          aide="Numéro local : l'indicatif +242 est ajouté automatiquement."
+        >
+          <div className="flex">
+            <span className="inline-flex items-center rounded-l-xl bg-stone-100 px-3.5 text-[15px] text-stone-600 ring-1 ring-black/[0.03]">
+              +242
+            </span>
+            <input
+              id={`${uid}-tel`}
+              type="tel"
+              value={telephone}
+              onChange={(e) =>
+                setTelephone(formaterTelephoneLocal(e.target.value))
+              }
+              placeholder="06 123 45 67"
+              autoComplete="tel"
+              required
+              className={`${CLASSE_CHAMP} rounded-l-none`}
+            />
+          </div>
         </Champ>
 
         <Champ

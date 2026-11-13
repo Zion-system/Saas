@@ -2,17 +2,17 @@ import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import {
   FaBars,
-  FaBell,
-  FaCashRegister,
+  FaBook,
+  FaBookOpen,
+  FaCalendarTimes,
   FaChartBar,
-  FaClipboardList,
+  FaChalkboardTeacher,
   FaCog,
   FaCrown,
-  FaFileAlt,
   FaFileInvoiceDollar,
   FaGraduationCap,
   FaHome,
-  FaMoneyBillWave,
+  FaLock,
   FaSchool,
   FaSignOutAlt,
   FaTimes,
@@ -20,7 +20,6 @@ import {
 } from "react-icons/fa";
 import { NOM_ECOLE } from "../../config/ecole";
 import { AUTH_DESACTIVEE_TEMPORAIREMENT } from "../../config/authentification";
-import { Badge } from "../ui/Badge";
 import { deconnecter } from "../../services/compte/compte.service";
 
 interface EntreeNavigation {
@@ -31,46 +30,58 @@ interface EntreeNavigation {
   disponible: boolean;
 }
 
+/**
+ * Navigation principale — les 9 onglets de la maquette validée (image
+ * « onglet eleves interessant »), dans son ordre :
+ *   Tableau de bord · Élèves · Classes · Professeurs · Matières ·
+ *   Frais scolaires · Notes & Bulletins · Absences · Rapports.
+ *
+ * Les modules sans équivalent dans la maquette restent accessibles autrement :
+ * - Paramètres : lien discret en bas de la barre (pas un travail quotidien) ;
+ * - Candidatures, Inscriptions, Paiements, Caisse, Impayés : leurs chemins
+ *   continuent d'exister (routes.tsx) et entreront plus tard comme états
+ *   ou tiroirs internes de « Élèves » et « Frais scolaires ».
+ */
 const NAVIGATION: EntreeNavigation[] = [
-  { libelle: "Accueil", chemin: "/", icone: FaHome, disponible: true },
-  { libelle: "Organisation", chemin: "/organisation", icone: FaSchool, disponible: true },
-  { libelle: "Élèves & responsables", chemin: "/eleves", icone: FaUserGraduate, disponible: true },
-  { libelle: "Candidatures", chemin: "/candidatures", icone: FaFileAlt, disponible: false },
-  { libelle: "Inscriptions", chemin: "/inscriptions", icone: FaClipboardList, disponible: false },
-  { libelle: "Facturation", chemin: "/facturation", icone: FaFileInvoiceDollar, disponible: false },
-  { libelle: "Encaissements", chemin: "/encaissements", icone: FaMoneyBillWave, disponible: false },
-  { libelle: "Caisse", chemin: "/caisse", icone: FaCashRegister, disponible: false },
-  { libelle: "Relances & créances", chemin: "/relances", icone: FaBell, disponible: false },
+  { libelle: "Tableau de bord", chemin: "/", icone: FaHome, disponible: true },
+  { libelle: "Élèves", chemin: "/eleves", icone: FaUserGraduate, disponible: true },
+  { libelle: "Classes", chemin: "/organisation", icone: FaSchool, disponible: true },
+  { libelle: "Professeurs", chemin: "/professeurs", icone: FaChalkboardTeacher, disponible: true },
+  { libelle: "Matières", chemin: "/matieres", icone: FaBook, disponible: true },
+  { libelle: "Frais scolaires", chemin: "/facturation", icone: FaFileInvoiceDollar, disponible: false },
+  { libelle: "Notes & Bulletins", chemin: "/bulletins", icone: FaBookOpen, disponible: false },
+  { libelle: "Absences", chemin: "/absences", icone: FaCalendarTimes, disponible: false },
   { libelle: "Rapports", chemin: "/rapports", icone: FaChartBar, disponible: false },
-  { libelle: "Paramètres", chemin: "/parametres", icone: FaCog, disponible: false },
 ];
 
 function ContenuNavigation({ onNaviguer }: { onNaviguer?: () => void }) {
   return (
     <div className="flex h-full flex-col">
-      {/* En-tête : logo + nom de l'école */}
-      <div className="border-b border-white/10 px-5 py-5">
-        <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-vert-sidebar-actif text-white shadow-inner">
-            <FaGraduationCap className="h-5 w-5" aria-hidden="true" />
+      {/* En-tête : logo + nom de l'école (compact pour laisser la place
+          aux 9 entrées sans jamais faire apparaître d'ascenseur). */}
+      <div className="border-b border-white/10 px-4 py-3.5">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-vert-sidebar-actif text-white shadow-inner">
+            <FaGraduationCap className="h-4.5 w-4.5" aria-hidden="true" />
           </span>
           <div className="min-w-0">
-            <p className="truncate text-[15px] font-bold tracking-wide text-white">
+            <p className="truncate text-[14px] font-bold tracking-wide text-white">
               {NOM_ECOLE}
             </p>
-            <p className="text-[11px] uppercase tracking-[0.18em] text-emerald-100/50">
+            <p className="text-[10.5px] uppercase tracking-[0.18em] text-emerald-100/50">
               Gestion scolaire
             </p>
           </div>
         </div>
       </div>
 
-      {/* Navigation */}
-      <nav aria-label="Navigation principale" className="flex-1 overflow-y-auto px-3 py-4">
-        <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-100/40">
-          Navigation
-        </p>
-        <ul className="space-y-1">
+      {/* Navigation — zone défilante propre au cas où (petits écrans) :
+          ascenseur fin et discret, rien de visible quand tout tient. */}
+      <nav
+        aria-label="Navigation principale"
+        className="min-h-0 flex-1 overflow-y-auto px-2.5 py-3 [scrollbar-color:rgba(255,255,255,0.18)_transparent] [scrollbar-width:thin]"
+      >
+        <ul className="space-y-0.5">
           {NAVIGATION.map((entree) => {
             const Icone = entree.icone;
 
@@ -80,18 +91,30 @@ function ContenuNavigation({ onNaviguer }: { onNaviguer?: () => void }) {
                   to={entree.chemin}
                   end={entree.chemin === "/"}
                   onClick={onNaviguer}
+                  title={
+                    entree.disponible
+                      ? undefined
+                      : "Ce module arrive bientôt : il est en préparation."
+                  }
                   className={({ isActive }) =>
-                    `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
+                    `flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13.5px] font-medium transition-colors ${
                       isActive
                         ? "bg-vert-sidebar-actif text-white shadow-sm ring-1 ring-white/10"
-                        : "text-emerald-50/65 hover:bg-white/5 hover:text-white"
+                        : entree.disponible
+                          ? "text-emerald-50/70 hover:bg-white/5 hover:text-white"
+                          : "text-emerald-100/35 hover:bg-white/5 hover:text-emerald-100/60"
                     }`
                   }
                 >
                   <Icone className="h-4 w-4 shrink-0" aria-hidden="true" />
                   <span className="flex-1 truncate">{entree.libelle}</span>
+                  {/* Modules non livrés : un petit cadenas grisé à la
+                      place de l'ancien badge « BIENTÔT » qui criait. */}
                   {!entree.disponible && (
-                    <Badge variante="bientot">Bientôt</Badge>
+                    <FaLock
+                      className="h-3 w-3 shrink-0 text-emerald-200/30"
+                      aria-hidden="true"
+                    />
                   )}
                 </NavLink>
               </li>
@@ -100,35 +123,54 @@ function ContenuNavigation({ onNaviguer }: { onNaviguer?: () => void }) {
         </ul>
       </nav>
 
-      {/* Pied : diagnostic, premium, profil et déconnexion */}
-      <div className="space-y-3 border-t border-white/10 px-3 py-4">
-        <NavLink
-          to="/diagnostic"
-          onClick={onNaviguer}
-          className="block rounded-lg px-3 py-2 text-[11px] text-emerald-100/45 transition-colors hover:text-emerald-100/80"
-        >
-          Diagnostic base de données
-        </NavLink>
-
-        <div className="rounded-2xl border border-amber-200/20 bg-gradient-to-br from-amber-300/15 to-orange-400/10 p-3">
-          <div className="flex items-center gap-2 text-amber-200">
-            <FaCrown className="h-4 w-4" aria-hidden="true" />
-            <p className="text-sm font-bold">Premium</p>
-          </div>
-          <p className="mt-1 text-[11px] leading-snug text-emerald-50/60">
-            Accédez à toutes les fonctionnalités de gestion.
-          </p>
+      {/* Pied compact : paramètres, diagnostic, premium, profil et
+          déconnexion — deux blocs serrés au lieu de grandes cartes. */}
+      <div className="space-y-2 border-t border-white/10 px-2.5 py-3">
+        <div className="flex items-center gap-1">
+          <NavLink
+            to="/parametres"
+            onClick={onNaviguer}
+            className="flex flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-[12px] text-emerald-100/60 transition-colors hover:bg-white/5 hover:text-emerald-100"
+          >
+            <FaCog className="h-3.5 w-3.5" aria-hidden="true" />
+            Paramètres
+          </NavLink>
+          <NavLink
+            to="/diagnostic"
+            onClick={onNaviguer}
+            title="Diagnostic base de données"
+            className="rounded-lg px-2 py-1.5 text-[11px] text-emerald-100/45 transition-colors hover:bg-white/5 hover:text-emerald-100/80"
+          >
+            Diagnostic
+          </NavLink>
         </div>
 
-        <div className="flex items-center gap-3 rounded-2xl bg-white/5 p-3 ring-1 ring-white/10">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-vert-sidebar-actif text-xs font-bold text-white">
+        <div className="flex items-center gap-2 rounded-xl border border-amber-200/20 bg-gradient-to-br from-amber-300/15 to-orange-400/10 px-2.5 py-2">
+          <FaCrown
+            className="h-3.5 w-3.5 shrink-0 text-amber-200"
+            aria-hidden="true"
+          />
+          <div className="min-w-0">
+            <p className="text-[12px] font-bold leading-tight text-amber-200">
+              Premium
+            </p>
+            <p className="truncate text-[10.5px] leading-tight text-emerald-50/55">
+              Toutes les fonctionnalités.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2.5 rounded-xl bg-white/5 px-2.5 py-2 ring-1 ring-white/10">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-vert-sidebar-actif text-[11px] font-bold text-white">
             AD
           </span>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-white">
+            <p className="truncate text-[12.5px] font-semibold leading-tight text-white">
               Administrateur
             </p>
-            <p className="truncate text-[11px] text-emerald-100/50">Direction</p>
+            <p className="truncate text-[10.5px] leading-tight text-emerald-100/50">
+              Direction
+            </p>
           </div>
         </div>
 
@@ -142,7 +184,7 @@ function ContenuNavigation({ onNaviguer }: { onNaviguer?: () => void }) {
               deconnecter();
               window.location.href = "/onboarding/connexion";
             }}
-            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-rose-100/75 transition-colors hover:bg-rose-500/10 hover:text-rose-100"
+            className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-[13px] font-medium text-rose-100/75 transition-colors hover:bg-rose-500/10 hover:text-rose-100"
           >
             <FaSignOutAlt className="h-4 w-4" aria-hidden="true" />
             Se déconnecter

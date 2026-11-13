@@ -45,13 +45,19 @@ Le paquet **n'inclut pas** `node_modules` (normal : il se reconstruit avec
 P1 → P4 dans cet ordre. Chaque chantier se termine par : build + lint
 0/0 + tests au vert, puis un commit (sans amend, sans push).
 
-### P1 — Dossier Élèves, version minimale mais réelle (≈ 2 h) : le cœur
+### P1 — Dossier Élèves, version minimale mais réelle : ✅ FAIT (11/11)
 
-Sans élèves, l'application ne sert à rien. Il faut pouvoir :
-- créer un élève manuellement : nom, sexe, date de naissance, classe ;
-- lister les élèves d'une classe, corriger une fiche, désinscrire ;
-- brancher l'étape 4 du parcours de création d'école sur ce module
-  (aujourd'hui elle affiche un bandeau orange honnête).
+- Ajout manuel enregistré en base (migration 019 : prénom, nom, genre de
+  l'élève ; nom et téléphone du responsable) ;
+- inscription automatique pour l'année créée à l'étape 1 + affectation à
+  la classe choisie ;
+- retrait = annulation de l'inscription (rien n'est supprimé) ;
+- import Excel réel : modèle .xlsx téléchargeable, lecture 100 % locale,
+  contrôle ligne par ligne, doublons ignorés, limite 500 élèves ;
+- case « Facturer les frais d'inscription » grisée jusqu'à la
+  facturation (G-02 à G-08).
+Reste pour le module Élèves complet : fiche détaillée, date de naissance,
+documents, évaluations, correction des dossiers.
 
 ### P2 — Accueil public + création de compte (B0-A-2, ≈ 2 h)
 

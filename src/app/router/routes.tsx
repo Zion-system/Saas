@@ -4,6 +4,9 @@ import { Accueil } from "../../pages/accueil/Accueil";
 import { Diagnostic } from "../../pages/diagnostic/Diagnostic";
 import { PageIntrouvable } from "../../pages/erreurs/PageIntrouvable";
 import { ModuleAVenir } from "../../pages/module-a-venir/ModuleAVenir";
+import { PageProfesseurs } from "../../pages/professeurs/PageProfesseurs";
+import { PageMatieres } from "../../pages/matieres/PageMatieres";
+import { Parametres } from "../../pages/parametres/Parametres";
 import { Organisation } from "../../pages/organisation/Organisation";
 import { PageEleves } from "../../pages/eleves/PageEleves";
 import { ConfigurationInitiale } from "../../pages/configuration/ConfigurationInitiale";
@@ -25,7 +28,6 @@ const CHEMINS_MODULES = [
   "/rapports",
   "/bulletins",
   "/absences",
-  "/parametres",
 ];
 
 /**
@@ -71,7 +73,10 @@ export function AppRoutes() {
         <Route path="/" element={<Accueil />} />
         <Route path="/organisation" element={<Organisation />} />
         <Route path="/eleves" element={<PageEleves />} />
+        <Route path="/professeurs" element={<PageProfesseurs />} />
+        <Route path="/matieres" element={<PageMatieres />} />
         <Route path="/diagnostic" element={<Diagnostic />} />
+        <Route path="/parametres" element={<Parametres />} />
         {CHEMINS_MODULES.map((chemin) => (
           <Route key={chemin} path={chemin} element={<ModuleAVenir />} />
         ))}

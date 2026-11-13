@@ -1,8 +1,12 @@
-import type {
-  ButtonHTMLAttributes,
-  InputHTMLAttributes,
-  ReactNode,
-  SelectHTMLAttributes,
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ButtonHTMLAttributes,
+  type InputHTMLAttributes,
+  type ReactNode,
+  type SelectHTMLAttributes,
 } from "react";
 import type { IconType } from "react-icons";
 import {
@@ -113,7 +117,7 @@ export function ListeDeroulante({
   );
 }
 
-/* ============================== Puces ============================== */
+/* ============================== Puces (réservé) ============================== */
 
 export function Puce({
   actif,
@@ -145,6 +149,9 @@ const VARIANTES_BOUTON = {
   principal: "w-full h-[46px] bg-[#2d8a6b] text-white hover:bg-[#247a5d]",
   secondaire:
     "h-10 self-start bg-[#2d8a6b] text-[13.5px] text-white hover:bg-[#247a5d]",
+  /** Bouton d'action secondaire en page (contour gris, pas de remplissage). */
+  contour:
+    "h-10 self-start border-stone-200 bg-white text-[13.5px] text-stone-700 hover:border-[#2d8a6b] hover:text-stone-900",
   fantome:
     "h-11 border-stone-200 bg-transparent text-stone-900 hover:bg-stone-100",
 } as const;
@@ -186,6 +193,116 @@ export function Bouton({
         <IconeDroite size={17} aria-hidden="true" />
       ) : null}
     </button>
+  );
+}
+
+/* ============================== Menu déroulant ============================== */
+
+export interface ElementMenu {
+  libelle: string;
+  action: () => void;
+  icone?: IconType;
+  disabled?: boolean;
+  /** Explication affichée en info-bulle (utile quand désactivé). */
+  titre?: string;
+}
+
+/**
+ * Bouton secondaire (contour) qui déroule une petite liste d'actions.
+ * Fermeture propre : clic dehors ou touche Échap. Utilisé en tête de la
+ * page Élèves pour regrouper Import / Export sans écraser le titre.
+ */
+export function MenuDeroulant({
+  libelle,
+  icone: Icone,
+  elements,
+  disabled,
+}: {
+  libelle: string;
+  icone?: IconType;
+  elements: ElementMenu[];
+  disabled?: boolean;
+}) {
+  const [ouvert, setOuvert] = useState(false);
+  const conteneurRef = useRef<HTMLDivElement>(null);
+  const idMenu = useId();
+
+  useEffect(() => {
+    if (!ouvert) return;
+    const auClicDehors = (evenement: MouseEvent) => {
+      if (
+        conteneurRef.current &&
+        !conteneurRef.current.contains(evenement.target as Node)
+      ) {
+        setOuvert(false);
+      }
+    };
+    const aLEchap = (evenement: KeyboardEvent) => {
+      if (evenement.key === "Escape") setOuvert(false);
+    };
+    document.addEventListener("mousedown", auClicDehors);
+    document.addEventListener("keydown", aLEchap);
+    return () => {
+      document.removeEventListener("mousedown", auClicDehors);
+      document.removeEventListener("keydown", aLEchap);
+    };
+  }, [ouvert]);
+
+  return (
+    <div ref={conteneurRef} className="relative w-fit">
+      <button
+        type="button"
+        disabled={disabled}
+        aria-haspopup="menu"
+        aria-expanded={ouvert}
+        aria-controls={idMenu}
+        onClick={() => setOuvert((precedent) => !precedent)}
+        className={cx(
+          "inline-flex h-10 items-center justify-center gap-2 rounded-[10px] border border-stone-200 bg-white px-4 text-[13.5px] font-semibold text-stone-700 transition-colors",
+          "hover:border-[#2d8a6b] hover:text-stone-900",
+          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2d8a6b] disabled:cursor-not-allowed disabled:opacity-50",
+        )}
+      >
+        {Icone ? <Icone size={17} aria-hidden="true" /> : null}
+        <span>{libelle}</span>
+        <LuChevronDown
+          size={15}
+          aria-hidden="true"
+          className={cx("transition-transform", ouvert && "rotate-180")}
+        />
+      </button>
+
+      {ouvert ? (
+        <div
+          id={idMenu}
+          role="menu"
+          className="absolute right-0 z-30 mt-1.5 min-w-[250px] rounded-xl bg-white p-1.5 shadow-lg ring-1 ring-black/10"
+        >
+          {elements.map((element) => {
+            const IconeElement = element.icone;
+            return (
+              <button
+                key={element.libelle}
+                type="button"
+                role="menuitem"
+                disabled={element.disabled}
+                title={element.titre}
+                onClick={() => {
+                  setOuvert(false);
+                  element.action();
+                }}
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[13.5px] text-stone-800 transition-colors hover:bg-stone-100 disabled:cursor-not-allowed disabled:text-stone-300 hover:disabled:bg-transparent"
+              >
+                {IconeElement ? (
+                  <IconeElement size={16} aria-hidden="true" />
+                ) : null}
+                {element.libelle}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

@@ -50,14 +50,14 @@ describe("migration libelle_modele_classe", () => {
     database.close();
   });
 
-  it("applique 001–020 en ordre et ajoute la colonne libelle sans créer d'objet", () => {
+  it("applique 001–021 en ordre et ajoute la colonne libelle sans créer d'objet", () => {
     const versions = database.exec({
       sql: "SELECT version FROM schema_migrations ORDER BY version;",
       rowMode: "object",
       returnValue: "resultRows",
     });
     expect(versions.map((row) => row.version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
     ]);
 
     const colonnes = database.exec({

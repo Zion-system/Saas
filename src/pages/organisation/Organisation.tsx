@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { IconType } from "react-icons";
 import {
@@ -10,14 +10,18 @@ import {
   FaLayerGroup,
   FaPlus,
   FaSchool,
-  FaSyncAlt,
   FaTimes,
   FaTrash,
 } from "react-icons/fa";
+import { LuLock } from "react-icons/lu";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Carte } from "../../components/ui/Carte";
 import { NOM_ECOLE } from "../../config/ecole";
+import {
+  servicesElevesResponsables,
+  type DossierEleve,
+} from "../../services/eleves-responsables";
 import { servicesOrganisationScolaire } from "../../services/organisation-scolaire";
 import type {
   AnneeScolaire,
@@ -26,7 +30,23 @@ import type {
   StatutAnneeScolaire,
 } from "../../services/organisation-scolaire";
 
-type Onglet = "annees" | "referentiels" | "classes";
+/**
+ * Page « Classes » — volontairement SIMPLE, sur le modèle de la maquette
+ * de référence (image EcoleSaaS) : un seul tableau lisible d'un coup
+ * d'œil (Classe · Niveau · Année scolaire · Frais d'inscription · Frais
+ * de scolarité · Effectif/Capacité) et un bouton « Nouvelle classe ».
+ *
+ * Le reste existe toujours mais sort du chemin du quotidien :
+ * - onglet « Années scolaires » : création et ouverture des années ;
+ * - onglet « Avancé » : cycles, niveaux et lettres de classe — préremplis
+ *   par la configuration de l'école, rarement à toucher.
+ *
+ * Honnêteté : les deux colonnes de frais restent à « — » avec un cadenas
+ * tant que le module Frais scolaires n'est pas livré ; l'effectif, lui,
+ * est calculé en vrai depuis les dossiers élèves de la base.
+ */
+
+type Onglet = "classes" | "annees" | "avance";
 type TypeMessage = "succes" | "erreur";
 
 interface Message {
@@ -62,6 +82,19 @@ function libelleStatut(statut: StatutAnneeScolaire): string {
 
 function varianteStatut(statut: StatutAnneeScolaire): "bientot" | "neutre" {
   return statut === "OUVERTE" ? "bientot" : "neutre";
+}
+
+/** Colonne de frais non encore branchée : cadenas discret + info-bulle. */
+function ColonneFraisaVenir() {
+  return (
+    <span
+      className="inline-flex items-center gap-1 text-xs text-stone-400"
+      title="Les frais par classe arriveront avec le module Frais scolaires."
+    >
+      <LuLock size={12} aria-hidden="true" />
+      Bientôt
+    </span>
+  );
 }
 
 interface GestionReferentielProps {
@@ -276,7 +309,7 @@ const FORM_CLASSE_VIDE: FormClasse = {
 
 export function Organisation() {
   const navigate = useNavigate();
-  const [onglet, setOnglet] = useState<Onglet>("annees");
+  const [onglet, setOnglet] = useState<Onglet>("classes");
   const [etablissements, setEtablissements] = useState<Etablissement[]>([]);
   const [etablissementId, setEtablissementId] = useState<string | null>(null);
 
@@ -287,11 +320,13 @@ export function Organisation() {
 
   const [cycles, setCycles] = useState<string[]>([]);
   const [niveaux, setNiveaux] = useState<string[]>([]);
-  const [modeles, setModeles] = useState<string[]>([]);
+  const [modeles, setModeles] = useState<{ id: string; libelle: string }[]>([]);
 
   const [classes, setClasses] = useState<ClasseAnnuelle[]>([]);
+  const [dossiers, setDossiers] = useState<DossierEleve[]>([]);
   const [formClasse, setFormClasse] = useState<FormClasse>(FORM_CLASSE_VIDE);
   const [classeEdition, setClasseEdition] = useState<string | null>(null);
+  const [formClasseOuvert, setFormClasseOuvert] = useState(false);
 
   const [chargement, setChargement] = useState(true);
   const [actionEnCours, setActionEnCours] = useState(false);
@@ -306,7 +341,14 @@ export function Organisation() {
     ]);
     setCycles(cyclesRows.map((item) => item.id_cycle));
     setNiveaux(niveauxRows.map((item) => item.id_niveau));
-    setModeles(modelesRows.map((item) => item.id_modele_classe));
+    // Une lettre peut porter un libellé conservé (migration 020) :
+    // il s'affiche à la place de l'identifiant technique.
+    setModeles(
+      modelesRows.map((item) => ({
+        id: item.id_modele_classe,
+        libelle: item.libelle ?? item.id_modele_classe,
+      })),
+    );
   }, []);
 
   const chargerAnnees = useCallback(async (idEtablissement: string) => {
@@ -338,6 +380,15 @@ export function Organisation() {
     [],
   );
 
+  /** Effectifs en vrai : on compte les dossiers élèves par classe. */
+  const chargerDossiers = useCallback(async (idEtablissement: string) => {
+    setDossiers(
+      await servicesElevesResponsables.dossiers.listerParEtablissement(
+        idEtablissement,
+      ),
+    );
+  }, []);
+
   const charger = useCallback(async () => {
     try {
       const listeEtablissements =
@@ -352,6 +403,7 @@ export function Organisation() {
         await Promise.all([
           chargerAnnees(idEtablissement),
           chargerReferentiels(),
+          chargerDossiers(idEtablissement),
         ]);
       } else {
         setAnnees([]);
@@ -359,6 +411,7 @@ export function Organisation() {
         setCycles([]);
         setNiveaux([]);
         setModeles([]);
+        setDossiers([]);
         setAnneeSelectionnee("");
       }
     } catch (error) {
@@ -366,7 +419,7 @@ export function Organisation() {
     } finally {
       setChargement(false);
     }
-  }, [chargerAnnees, chargerReferentiels, etablissementId]);
+  }, [chargerAnnees, chargerDossiers, chargerReferentiels, etablissementId]);
 
   useEffect(() => {
     const minuteur = window.setTimeout(() => {
@@ -386,17 +439,18 @@ export function Organisation() {
     return () => window.clearTimeout(minuteur);
   }, [chargerClasses, etablissementId, anneeSelectionnee]);
 
-  async function executerAction(action: () => Promise<void>) {
-    setActionEnCours(true);
-    setMessage(null);
-    try {
-      await action();
-    } catch (error) {
-      setMessage({ type: "erreur", texte: messageErreur(error) });
-    } finally {
-      setActionEnCours(false);
+  /** Effectif de chaque classe, recalculé à chaque changement de dossiers. */
+  const effectifParClasse = useMemo(() => {
+    const compte = new Map<string, number>();
+    for (const dossier of dossiers) {
+      if (!dossier.id_classe_annuelle) continue;
+      compte.set(
+        dossier.id_classe_annuelle,
+        (compte.get(dossier.id_classe_annuelle) ?? 0) + 1,
+      );
     }
-  }
+    return compte;
+  }, [dossiers]);
 
   function demanderConfirmation(config: Confirmation) {
     setConfirmation(config);
@@ -407,6 +461,18 @@ export function Organisation() {
     const action = confirmation.action;
     setConfirmation(null);
     await executerAction(action);
+  }
+
+  async function executerAction(action: () => Promise<void>) {
+    setActionEnCours(true);
+    setMessage(null);
+    try {
+      await action();
+    } catch (error) {
+      setMessage({ type: "erreur", texte: messageErreur(error) });
+    } finally {
+      setActionEnCours(false);
+    }
   }
 
   async function creerAnnee() {
@@ -521,13 +587,13 @@ export function Organisation() {
 
   function validerFormClasse(): string | null {
     if (!formClasse.id_classe_annuelle.trim()) {
-      return "L'identifiant de la classe est obligatoire.";
+      return "Le nom de la classe est obligatoire.";
     }
     if (!formClasse.id_niveau) {
       return "Le niveau est obligatoire.";
     }
     if (!formClasse.id_modele_classe) {
-      return "Le modèle de classe est obligatoire.";
+      return "La lettre de la classe est obligatoire.";
     }
     if (formClasse.capacite_max.trim() !== "") {
       const capacite = Number(formClasse.capacite_max);
@@ -574,8 +640,16 @@ export function Organisation() {
 
       setFormClasse(FORM_CLASSE_VIDE);
       setClasseEdition(null);
+      setFormClasseOuvert(false);
       await chargerClasses(etablissementId, anneeSelectionnee);
     });
+  }
+
+  function ouvrirNouvelleClasse() {
+    setClasseEdition(null);
+    setFormClasse(FORM_CLASSE_VIDE);
+    setFormClasseOuvert(true);
+    setMessage(null);
   }
 
   function demarrerEditionClasse(classe: ClasseAnnuelle) {
@@ -587,7 +661,14 @@ export function Organisation() {
       capacite_max:
         classe.capacite_max == null ? "" : String(classe.capacite_max),
     });
+    setFormClasseOuvert(true);
     setMessage(null);
+  }
+
+  function fermerFormClasse() {
+    setFormClasseOuvert(false);
+    setClasseEdition(null);
+    setFormClasse(FORM_CLASSE_VIDE);
   }
 
   function supprimerClasse(classe: ClasseAnnuelle) {
@@ -607,35 +688,20 @@ export function Organisation() {
   }
 
   const onglets: { id: Onglet; libelle: string; icone: IconType }[] = [
-    { id: "annees", libelle: "Années scolaires", icone: FaCalendarAlt },
-    { id: "referentiels", libelle: "Référentiels", icone: FaLayerGroup },
     { id: "classes", libelle: "Classes", icone: FaChalkboard },
+    { id: "annees", libelle: "Années scolaires", icone: FaCalendarAlt },
+    { id: "avance", libelle: "Avancé", icone: FaLayerGroup },
   ];
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-stone-900">Organisation</h1>
-          <p className="mt-1 text-sm text-stone-500">
-            Structure pédagogique de {NOM_ECOLE} : années, référentiels et
-            classes annuelles.
+          <h1 className="text-lg font-semibold text-stone-900">Classes</h1>
+          <p className="mt-0.5 text-[13px] text-stone-500">
+            Les classes de {NOM_ECOLE}, avec leurs effectifs.
           </p>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            setChargement(true);
-            setMessage(null);
-            void charger();
-          }}
-          isLoading={chargement}
-        >
-          <FaSyncAlt className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-          Actualiser
-        </Button>
       </header>
 
       {message && (
@@ -653,7 +719,7 @@ export function Organisation() {
 
       {chargement ? (
         <Carte className="p-10 text-center text-sm text-stone-500">
-          Chargement de l'organisation…
+          Chargement des classes…
         </Carte>
       ) : etablissements.length === 0 ? (
         <Carte className="mx-auto max-w-xl p-8">
@@ -709,6 +775,316 @@ export function Organisation() {
             })}
           </nav>
 
+          {/* ==================== Onglet Classes (le quotidien) ========= */}
+          {onglet === "classes" && (
+            <section className="space-y-4">
+              {/* Barre d'outils : année + le seul bouton d'action. */}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <label className="flex items-center gap-2 text-[13px] text-stone-600">
+                  Année scolaire
+                  <select
+                    className={`${CLASSES_CHAMP} w-44`}
+                    value={anneeSelectionnee}
+                    onChange={(event) =>
+                      setAnneeSelectionnee(event.target.value)
+                    }
+                  >
+                    {annees.length === 0 && (
+                      <option value="">Aucune année</option>
+                    )}
+                    {annees.map((annee) => (
+                      <option
+                        key={annee.id_annee_scolaire}
+                        value={annee.id_annee_scolaire}
+                      >
+                        {annee.id_annee_scolaire}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <Button
+                  type="button"
+                  variant="vert"
+                  onClick={ouvrirNouvelleClasse}
+                  disabled={annees.length === 0}
+                >
+                  <FaPlus className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                  Nouvelle classe
+                </Button>
+              </div>
+
+              {/* Formulaire compact, ouvert seulement à la demande. */}
+              {formClasseOuvert && (
+                <Carte className="p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h2 className="text-base font-semibold text-stone-900">
+                        {classeEdition
+                          ? "Modifier la classe"
+                          : "Nouvelle classe"}
+                      </h2>
+                      <p className="mt-0.5 text-xs text-stone-500">
+                        Année : {anneeSelectionnee || "—"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={fermerFormClasse}
+                      aria-label="Fermer le formulaire"
+                      className="rounded-lg p-1.5 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
+                    >
+                      <FaTimes className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <label className="block text-xs font-medium text-stone-600">
+                      Nom de la classe
+                      <input
+                        className={`${CLASSES_CHAMP} mt-1`}
+                        value={formClasse.id_classe_annuelle}
+                        onChange={(event) =>
+                          setFormClasse((precedent) => ({
+                            ...precedent,
+                            id_classe_annuelle: event.target.value,
+                          }))
+                        }
+                        placeholder="Ex. 6e A"
+                      />
+                    </label>
+
+                    <label className="block text-xs font-medium text-stone-600">
+                      Niveau
+                      <select
+                        className={`${CLASSES_CHAMP} mt-1`}
+                        value={formClasse.id_niveau}
+                        onChange={(event) =>
+                          setFormClasse((precedent) => ({
+                            ...precedent,
+                            id_niveau: event.target.value,
+                          }))
+                        }
+                      >
+                        <option value="">Choisir un niveau…</option>
+                        {niveaux.map((niveau) => (
+                          <option key={niveau} value={niveau}>
+                            {niveau}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="block text-xs font-medium text-stone-600">
+                      Lettre / groupe
+                      <select
+                        className={`${CLASSES_CHAMP} mt-1`}
+                        value={formClasse.id_modele_classe}
+                        onChange={(event) =>
+                          setFormClasse((precedent) => ({
+                            ...precedent,
+                            id_modele_classe: event.target.value,
+                          }))
+                        }
+                      >
+                        <option value="">Choisir…</option>
+                        {modeles.map((modele) => (
+                          <option key={modele.id} value={modele.id}>
+                            {modele.libelle}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="block text-xs font-medium text-stone-600">
+                      Capacité (facultatif)
+                      <input
+                        className={`${CLASSES_CHAMP} mt-1`}
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={formClasse.capacite_max}
+                        onChange={(event) =>
+                          setFormClasse((precedent) => ({
+                            ...precedent,
+                            capacite_max: event.target.value,
+                          }))
+                        }
+                        placeholder="Ex. 40"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="mt-4 flex gap-2">
+                    <Button
+                      type="button"
+                      variant="vert"
+                      onClick={() => void enregistrerClasse()}
+                      isLoading={actionEnCours}
+                    >
+                      {classeEdition
+                        ? "Enregistrer"
+                        : "Créer la classe"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={fermerFormClasse}
+                    >
+                      Annuler
+                    </Button>
+                  </div>
+                </Carte>
+              )}
+
+              {/* Le tableau unique, lisible d'un coup d'œil. */}
+              <Carte className="overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-stone-50 text-[11px] uppercase tracking-wide text-stone-500">
+                      <tr>
+                        <th scope="col" className="px-4 py-2.5 font-semibold">
+                          Classe
+                        </th>
+                        <th scope="col" className="px-4 py-2.5 font-semibold">
+                          Niveau
+                        </th>
+                        <th scope="col" className="px-4 py-2.5 font-semibold">
+                          Année scolaire
+                        </th>
+                        <th scope="col" className="px-4 py-2.5 font-semibold">
+                          Frais d'inscription
+                        </th>
+                        <th scope="col" className="px-4 py-2.5 font-semibold">
+                          Frais de scolarité
+                        </th>
+                        <th scope="col" className="px-4 py-2.5 font-semibold">
+                          Effectif / Capacité
+                        </th>
+                        <th scope="col" className="px-4 py-2.5">
+                          <span className="sr-only">Actions</span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-100">
+                      {classes.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={7}
+                            className="px-4 py-8 text-center text-stone-500"
+                          >
+                            {annees.length === 0 ? (
+                              <>
+                                Aucune année scolaire : ouvrez l'onglet
+                                « Années scolaires » pour créer la première.
+                              </>
+                            ) : (
+                              <>
+                                Aucune classe pour cette année. Cliquez sur
+                                « Nouvelle classe » pour créer la première.
+                              </>
+                            )}
+                          </td>
+                        </tr>
+                      ) : (
+                        classes.map((classe) => {
+                          const effectif =
+                            effectifParClasse.get(classe.id_classe_annuelle) ??
+                            0;
+                          const lettre =
+                            modeles.find(
+                              (modele) =>
+                                modele.id === classe.id_modele_classe,
+                            )?.libelle ?? classe.id_modele_classe;
+                          return (
+                            <tr
+                              key={classe.id_classe_annuelle}
+                              className="transition-colors hover:bg-stone-50/70"
+                            >
+                              <td className="px-4 py-2.5">
+                                <span className="font-semibold text-stone-900">
+                                  {classe.id_classe_annuelle}
+                                </span>
+                                {/* La lettre ne s'affiche que si elle
+                                    apporte quelque chose (ex. « 3e A » :
+                                    classe « 3e », lettre « A »). */}
+                                {lettre !== classe.id_classe_annuelle ? (
+                                  <span className="ml-2 text-xs text-stone-400">
+                                    {lettre}
+                                  </span>
+                                ) : null}
+                              </td>
+                              <td className="px-4 py-2.5 text-stone-700">
+                                {classe.id_niveau}
+                              </td>
+                              <td className="whitespace-nowrap px-4 py-2.5 text-stone-700">
+                                {classe.id_annee_scolaire}
+                              </td>
+                              <td className="px-4 py-2.5">
+                                <ColonneFraisaVenir />
+                              </td>
+                              <td className="px-4 py-2.5">
+                                <ColonneFraisaVenir />
+                              </td>
+                              <td className="whitespace-nowrap px-4 py-2.5">
+                                <span className="font-semibold text-stone-900">
+                                  {effectif}
+                                </span>
+                                {classe.capacite_max != null ? (
+                                  <span className="text-stone-400">
+                                    {" "}
+                                    / {classe.capacite_max}
+                                  </span>
+                                ) : null}
+                              </td>
+                              <td className="px-4 py-2.5">
+                                <span className="flex items-center justify-end gap-1">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() =>
+                                      demarrerEditionClasse(classe)
+                                    }
+                                    aria-label={`Modifier ${classe.id_classe_annuelle}`}
+                                  >
+                                    <FaEdit
+                                      className="h-3.5 w-3.5"
+                                      aria-hidden="true"
+                                    />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => supprimerClasse(classe)}
+                                    aria-label={`Supprimer ${classe.id_classe_annuelle}`}
+                                    className="text-rose-600 hover:bg-rose-50"
+                                  >
+                                    <FaTrash
+                                      className="h-3.5 w-3.5"
+                                      aria-hidden="true"
+                                    />
+                                  </Button>
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="border-t border-stone-100 px-4 py-2.5 text-center text-[12.5px] text-stone-500">
+                  {classes.length} classe{classes.length > 1 ? "s" : ""} pour{" "}
+                  {anneeSelectionnee || "—"} ·{" "}
+                  {niveaux.length} niveau{niveaux.length > 1 ? "x" : ""} en
+                  tout
+                </p>
+              </Carte>
+            </section>
+          )}
+
+          {/* ==================== Onglet Années scolaires ============== */}
           {onglet === "annees" && (
             <section className="space-y-4">
               <Carte className="p-5">
@@ -863,232 +1239,52 @@ export function Organisation() {
             </section>
           )}
 
-          {onglet === "referentiels" && (
-            <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-              <GestionReferentiel
-                titre="Cycles d'enseignement"
-                description="Ex. Primaire, Collège, Lycée."
-                icone={FaSchool}
-                items={cycles}
-                onAjouter={(id) => ajouterReferentiel("cycles", id)}
-                onRenommer={(ancien, nouveau) =>
-                  renommerReferentiel("cycles", ancien, nouveau)
-                }
-                onSupprimer={(id) => supprimerReferentiel("cycles", id)}
-                demanderConfirmation={demanderConfirmation}
-              />
-              <GestionReferentiel
-                titre="Niveaux d'enseignement"
-                description="Ex. Sixième, Troisième, Terminale."
-                icone={FaLayerGroup}
-                items={niveaux}
-                onAjouter={(id) => ajouterReferentiel("niveaux", id)}
-                onRenommer={(ancien, nouveau) =>
-                  renommerReferentiel("niveaux", ancien, nouveau)
-                }
-                onSupprimer={(id) => supprimerReferentiel("niveaux", id)}
-                demanderConfirmation={demanderConfirmation}
-              />
-              <GestionReferentiel
-                titre="Modèles de classe"
-                description="Ex. A, B, Scientifique, Littéraire."
-                icone={FaChalkboard}
-                items={modeles}
-                onAjouter={(id) => ajouterReferentiel("modeles", id)}
-                onRenommer={(ancien, nouveau) =>
-                  renommerReferentiel("modeles", ancien, nouveau)
-                }
-                onSupprimer={(id) => supprimerReferentiel("modeles", id)}
-                demanderConfirmation={demanderConfirmation}
-              />
-            </section>
-          )}
-
-          {onglet === "classes" && (
-            <section className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
-              <Carte className="p-5">
-                <h2 className="text-lg font-semibold text-stone-900">
-                  {classeEdition ? "Modifier la classe" : "Nouvelle classe"}
-                </h2>
-                <p className="mt-0.5 text-xs text-stone-500">
-                  Année : {anneeSelectionnee || "—"}
-                </p>
-
-                <div className="mt-4 space-y-3">
-                  <label className="block text-xs font-medium text-stone-600">
-                    Année scolaire
-                    <select
-                      className={`${CLASSES_CHAMP} mt-1`}
-                      value={anneeSelectionnee}
-                      onChange={(event) => setAnneeSelectionnee(event.target.value)}
-                    >
-                      {annees.length === 0 && <option value="">Aucune année</option>}
-                      {annees.map((annee) => (
-                        <option
-                          key={annee.id_annee_scolaire}
-                          value={annee.id_annee_scolaire}
-                        >
-                          {annee.id_annee_scolaire} ({libelleStatut(annee.statut)})
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="block text-xs font-medium text-stone-600">
-                    Identifiant de la classe
-                    <input
-                      className={`${CLASSES_CHAMP} mt-1`}
-                      value={formClasse.id_classe_annuelle}
-                      onChange={(event) =>
-                        setFormClasse((precedent) => ({
-                          ...precedent,
-                          id_classe_annuelle: event.target.value,
-                        }))
-                      }
-                      placeholder="Ex. 6eA"
-                    />
-                  </label>
-
-                  <label className="block text-xs font-medium text-stone-600">
-                    Niveau
-                    <select
-                      className={`${CLASSES_CHAMP} mt-1`}
-                      value={formClasse.id_niveau}
-                      onChange={(event) =>
-                        setFormClasse((precedent) => ({
-                          ...precedent,
-                          id_niveau: event.target.value,
-                        }))
-                      }
-                    >
-                      <option value="">Sélectionner un niveau</option>
-                      {niveaux.map((niveau) => (
-                        <option key={niveau} value={niveau}>
-                          {niveau}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="block text-xs font-medium text-stone-600">
-                    Modèle de classe
-                    <select
-                      className={`${CLASSES_CHAMP} mt-1`}
-                      value={formClasse.id_modele_classe}
-                      onChange={(event) =>
-                        setFormClasse((precedent) => ({
-                          ...precedent,
-                          id_modele_classe: event.target.value,
-                        }))
-                      }
-                    >
-                      <option value="">Sélectionner un modèle</option>
-                      {modeles.map((modele) => (
-                        <option key={modele} value={modele}>
-                          {modele}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="block text-xs font-medium text-stone-600">
-                    Capacité maximale (optionnel)
-                    <input
-                      className={`${CLASSES_CHAMP} mt-1`}
-                      type="number"
-                      min={0}
-                      step={1}
-                      value={formClasse.capacite_max}
-                      onChange={(event) =>
-                        setFormClasse((precedent) => ({
-                          ...precedent,
-                          capacite_max: event.target.value,
-                        }))
-                      }
-                      placeholder="Ex. 40"
-                    />
-                  </label>
-
-                  <div className="flex gap-2 pt-1">
-                    <Button
-                      type="button"
-                      variant="vert"
-                      onClick={() => void enregistrerClasse()}
-                      isLoading={actionEnCours}
-                    >
-                      {classeEdition ? "Enregistrer" : "Créer la classe"}
-                    </Button>
-                    {classeEdition && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => {
-                          setClasseEdition(null);
-                          setFormClasse(FORM_CLASSE_VIDE);
-                        }}
-                      >
-                        Annuler
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </Carte>
-
-              <Carte className="overflow-hidden">
-                <div className="border-b border-stone-100 px-5 py-4">
-                  <h2 className="text-lg font-semibold text-stone-900">
-                    Classes de l'année
-                  </h2>
-                  <p className="mt-0.5 text-xs text-stone-500">
-                    {classes.length} classe(s) pour {anneeSelectionnee || "—"}
-                  </p>
-                </div>
-                <ul className="divide-y divide-stone-100">
-                  {classes.length === 0 && (
-                    <li className="p-8 text-center text-sm text-stone-400">
-                      Aucune classe pour cette année.
-                    </li>
-                  )}
-                  {classes.map((classe) => (
-                    <li
-                      key={classe.id_classe_annuelle}
-                      className="flex flex-wrap items-center gap-3 px-5 py-4"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-stone-900">
-                          {classe.id_classe_annuelle}
-                        </p>
-                        <p className="mt-0.5 text-xs text-stone-500">
-                          {classe.id_niveau} · {classe.id_modele_classe}
-                          {classe.capacite_max != null &&
-                            ` · Capacité ${classe.capacite_max}`}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => demarrerEditionClasse(classe)}
-                          aria-label={`Modifier ${classe.id_classe_annuelle}`}
-                        >
-                          <FaEdit className="h-3.5 w-3.5" aria-hidden="true" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => supprimerClasse(classe)}
-                          aria-label={`Supprimer ${classe.id_classe_annuelle}`}
-                          className="text-rose-600 hover:bg-rose-50"
-                        >
-                          <FaTrash className="h-3.5 w-3.5" aria-hidden="true" />
-                        </Button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </Carte>
+          {/* ==================== Onglet Avancé ======================== */}
+          {onglet === "avance" && (
+            <section className="space-y-3">
+              <p className="rounded-xl bg-stone-50 px-4 py-3 text-[13px] text-stone-600 ring-1 ring-stone-200">
+                Ces listes sont créées automatiquement à la configuration de
+                l'école : vous n'avez normalement rien à faire ici. Elles
+                restent accessibles pour les cas particuliers.
+              </p>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <GestionReferentiel
+                  titre="Cycles d'enseignement"
+                  description="Ex. Primaire, Collège, Lycée."
+                  icone={FaSchool}
+                  items={cycles}
+                  onAjouter={(id) => ajouterReferentiel("cycles", id)}
+                  onRenommer={(ancien, nouveau) =>
+                    renommerReferentiel("cycles", ancien, nouveau)
+                  }
+                  onSupprimer={(id) => supprimerReferentiel("cycles", id)}
+                  demanderConfirmation={demanderConfirmation}
+                />
+                <GestionReferentiel
+                  titre="Niveaux d'enseignement"
+                  description="Ex. Sixième, Troisième, Terminale."
+                  icone={FaLayerGroup}
+                  items={niveaux}
+                  onAjouter={(id) => ajouterReferentiel("niveaux", id)}
+                  onRenommer={(ancien, nouveau) =>
+                    renommerReferentiel("niveaux", ancien, nouveau)
+                  }
+                  onSupprimer={(id) => supprimerReferentiel("niveaux", id)}
+                  demanderConfirmation={demanderConfirmation}
+                />
+                <GestionReferentiel
+                  titre="Lettres de classe"
+                  description="Ex. A, B, Scientifique, Littéraire."
+                  icone={FaChalkboard}
+                  items={modeles.map((modele) => modele.id)}
+                  onAjouter={(id) => ajouterReferentiel("modeles", id)}
+                  onRenommer={(ancien, nouveau) =>
+                    renommerReferentiel("modeles", ancien, nouveau)
+                  }
+                  onSupprimer={(id) => supprimerReferentiel("modeles", id)}
+                  demanderConfirmation={demanderConfirmation}
+                />
+              </div>
             </section>
           )}
         </>

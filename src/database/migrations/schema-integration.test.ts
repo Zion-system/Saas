@@ -60,7 +60,7 @@ describe("intégrité globale du schéma SQLite V1", () => {
     database.close();
   });
 
-  it("applique 001–020 en ordre et crée les objets SQL attendus sans collisions de noms", () => {
+  it("applique 001–021 en ordre et crée les objets SQL attendus sans collisions de noms", () => {
     const versions = database.exec({
       sql: "SELECT version FROM schema_migrations ORDER BY version;",
       rowMode: "object",
@@ -87,12 +87,12 @@ describe("intégrité globale du schéma SQLite V1", () => {
     });
 
     expect(versions.map((row) => row.version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
     ]);
     expect(migrations.map((migration) => migration.version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
     ]);
-    expect(objectCounts).toContainEqual({ type: "table", count: 77 });
+    expect(objectCounts).toContainEqual({ type: "table", count: 79 });
     expect(objectCounts).toContainEqual({ type: "view", count: 1 });
     expect(
       Number(objectCounts.find((row) => row.type === "index")?.count),

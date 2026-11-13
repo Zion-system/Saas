@@ -24,6 +24,7 @@ import compteUtilisateur from "./017-compte-utilisateur";
 import infosEcoleAnnee from "./018-infos-ecole-annee";
 import identiteEleve from "./019-identite-eleve";
 import libelleModeleClasse from "./020-libelle-modele-classe";
+import referentielsPedagogiques from "./021-referentiels-pedagogiques";
 
 /**
  * Registre chronologique des migrations SQLite.
@@ -54,4 +55,5 @@ export const migrations: Migration[] = [
   infosEcoleAnnee,
   identiteEleve,
   libelleModeleClasse,
+  referentielsPedagogiques,
 ];

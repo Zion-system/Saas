@@ -33,6 +33,8 @@ import {
   nouveauBareme,
   slugifier,
 } from "./donnees";
+import { normaliserComparaison } from "../../utils/import-eleves";
+import { telephoneCompose } from "../../utils/telephone";
 import type {
   CleSystemeClasses,
   DonneesEcole,
@@ -386,34 +388,40 @@ export function ConfigurationInitiale() {
       const niveaux = new Set(
         (
           await servicesOrganisationScolaire.niveauxEnseignement.lister()
-        ).map((niveau) => niveau.id_niveau),
+        ).map((niveau) => normaliserComparaison(niveau.id_niveau)),
       );
       const modeles = new Set(
         (
           await servicesOrganisationScolaire.modelesClasse.lister()
-        ).map((modele) => modele.id_modele_classe),
+        ).map((modele) => normaliserComparaison(modele.id_modele_classe)),
       );
+      // Anciennes sessions : la sélection pouvait mélanger slugs et
+      // libellés bruts. La comparaison normalisée (accents/casse ignorés)
+      // empêche de créer deux fois la même classe.
       const dejaLa = new Set(
-        classesExistantes.map((classe) => classe.id_classe_annuelle),
+        classesExistantes.map((classe) =>
+          normaliserComparaison(classe.id_classe_annuelle),
+        ),
       );
 
       for (const slug of selection) {
-        if (!niveaux.has(slug)) {
+        const cle = normaliserComparaison(slug);
+        if (!niveaux.has(cle)) {
           await servicesOrganisationScolaire.niveauxEnseignement.creer({
             id_niveau: slug,
           });
-          niveaux.add(slug);
+          niveaux.add(cle);
         }
-        if (!modeles.has(slug)) {
+        if (!modeles.has(cle)) {
           await servicesOrganisationScolaire.modelesClasse.creer({
             id_modele_classe: slug,
             // Le libellé saisi est conservé en base (migration 020) :
             // il resservira après fermeture et relance de l'application.
             libelle: catalogue.get(slug) ?? null,
           });
-          modeles.add(slug);
+          modeles.add(cle);
         }
-        if (!dejaLa.has(slug)) {
+        if (!dejaLa.has(cle)) {
           await servicesOrganisationScolaire.classesAnnuelles.creer({
             id_classe_annuelle: slug,
             id_annee_scolaire: idAnnee,
@@ -475,7 +483,9 @@ export function ConfigurationInitiale() {
           donnee.parent.trim() !== ""
             ? {
                 nom_complet: donnee.parent,
-                telephone: donnee.telephone.trim() || null,
+                // Numéro local saisi à l'étape précédente : l'indicatif
+                // +242 est ajouté ici, au moment d'écrire en base.
+                telephone: telephoneCompose(donnee.telephone),
               }
             : null,
       });
